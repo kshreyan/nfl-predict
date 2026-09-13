@@ -13,7 +13,12 @@ import numpy as np
 import pandas as pd
 
 from src.nfl.data.ingest import load_cached_schedules
-from src.nfl.evaluation.metrics import expected_calibration_error
+from src.nfl.ensemble.blend import walk_forward_ensemble
+from src.nfl.evaluation.metrics import expected_calibration_error, summarize
+from src.nfl.models.moneyline.market_probs import (
+    market_implied_home_cover_prob,
+    market_implied_over_prob,
+)
 from src.nfl.models.spread.margin_model import (
     home_cover_probability,
     home_covers_actual,
@@ -51,6 +56,16 @@ def main() -> None:
     )
     margin_df["home_covers_actual"] = home_covers_actual(
         margin_df["home_score"], margin_df["away_score"], margin_df["spread_line"]
+    )
+    margin_df["market_cover_prob"] = market_implied_home_cover_prob(margin_df)
+    # Ensemble training needs a clean 0/1 outcome -- exclude pushes (0.5) by
+    # setting them to NaN so walk_forward_ensemble's dropna naturally skips them.
+    margin_df["_cover_outcome_for_training"] = margin_df["home_covers_actual"].where(
+        margin_df["home_covers_actual"] != 0.5
+    )
+    margin_df["ensemble_cover_prob"] = walk_forward_ensemble(
+        margin_df, model_prob_col="home_cover_prob", market_prob_col="market_cover_prob",
+        outcome_col="_cover_outcome_for_training",
     )
 
     ats_eval = margin_df[
@@ -94,12 +109,27 @@ def main() -> None:
     logger.info("Realistic ceiling (README target): 52-54%% ATS -> %s",
                 "OK" if 0.48 <= ats_accuracy <= 0.56 else "INVESTIGATE")
 
+    ens_ats_eval = ats_eval_no_push[ats_eval_no_push["ensemble_cover_prob"].notna()]
+    ens_ats_summary = summarize(
+        ens_ats_eval["ensemble_cover_prob"].values, ens_ats_eval["home_covers_actual"].values,
+        "ensemble_ats",
+    )
+    logger.info("Ensemble (model+market) ATS accuracy: %.4f (n=%d, log_loss=%.4f, ece=%.4f)",
+                ens_ats_summary["accuracy"], ens_ats_summary["n"], ens_ats_summary["log_loss"],
+                ens_ats_summary["ece"])
+
     # ---------------- TOTAL (Over/Under) ----------------
     total_df = walk_forward_total(elo_games)
     total_df["over_prob"] = over_probability(
         total_df["total_mean_pred"], total_df["total_sigma_pred"], total_df["total_line"]
     )
     total_df["over_actual"] = over_actual(total_df["total_points"], total_df["total_line"])
+    total_df["market_over_prob"] = market_implied_over_prob(total_df)
+    total_df["_over_outcome_for_training"] = total_df["over_actual"].where(total_df["over_actual"] != 0.5)
+    total_df["ensemble_over_prob"] = walk_forward_ensemble(
+        total_df, model_prob_col="over_prob", market_prob_col="market_over_prob",
+        outcome_col="_over_outcome_for_training",
+    )
 
     ou_eval = total_df[
         (total_df["game_type"] == "REG")
@@ -132,6 +162,14 @@ def main() -> None:
     logger.info("Realistic ceiling (README target): near breakeven (~50%%) -> %s",
                 "OK" if 0.47 <= ou_accuracy <= 0.53 else "INVESTIGATE (either leakage or a real, rare edge -- verify)")
 
+    ens_ou_eval = ou_eval_no_push[ou_eval_no_push["ensemble_over_prob"].notna()]
+    ens_ou_summary = summarize(
+        ens_ou_eval["ensemble_over_prob"].values, ens_ou_eval["over_actual"].values, "ensemble_ou",
+    )
+    logger.info("Ensemble (model+market) O/U accuracy: %.4f (n=%d, log_loss=%.4f, ece=%.4f)",
+                ens_ou_summary["accuracy"], ens_ou_summary["n"], ens_ou_summary["log_loss"],
+                ens_ou_summary["ece"])
+
     # ---------------- persist ----------------
     out_dir = Path("data/processed")
     margin_df.to_parquet(out_dir / "spread_backtest_full.parquet", index=False)
@@ -145,12 +183,14 @@ def main() -> None:
             "margin_mae": margin_mae, "market_margin_mae": market_margin_mae,
             "cover_prob_ece": ats_ece, "home_always_covers_acc": home_always_cover_acc,
             "favorite_always_covers_acc": fav_acc,
+            "ensemble": ens_ats_summary,
         },
         "total": {
             "n": int(len(ou_eval_no_push)), "ou_accuracy": ou_accuracy,
             "total_mae": total_mae, "market_total_mae": market_total_mae,
             "over_prob_ece": ou_ece, "always_over_acc": always_over_acc,
             "always_under_acc": always_under_acc,
+            "ensemble": ens_ou_summary,
         },
         "is_real_data": True,
     }

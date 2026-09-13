@@ -12,7 +12,7 @@ from __future__ import annotations
 import pandas as pd
 
 from src.nfl.data.ingest import load_cached_schedules
-from src.nfl.models.spread.margin_model import home_covers_actual
+from src.nfl.models.spread.margin_model import format_spread_side, home_covers_actual
 
 
 def test_spread_line_positive_means_home_favored_per_moneyline():
@@ -42,6 +42,22 @@ def test_home_covers_actual_matches_known_real_game():
     away_score2 = pd.Series([17.0])
     result2 = home_covers_actual(home_score2, away_score2, spread_line)
     assert result2.iloc[0] == 0.0
+
+
+def test_format_spread_side_matches_standard_sportsbook_display():
+    """spread_line=9.5 means the HOME team is favored by 9.5 (nflverse
+    convention). Standard sportsbook display shows the favorite as negative:
+    "LAC -9.5" / "ARI +9.5" -- not the other way around."""
+    home_label = format_spread_side("LAC", 9.5, is_home=True)
+    away_label = format_spread_side("ARI", 9.5, is_home=False)
+    assert home_label == "LAC -9.5"
+    assert away_label == "ARI +9.5"
+
+    # away favored case: spread_line negative means home is the underdog
+    home_label2 = format_spread_side("NYJ", -3.0, is_home=True)
+    away_label2 = format_spread_side("BUF", -3.0, is_home=False)
+    assert home_label2 == "NYJ +3.0"
+    assert away_label2 == "BUF -3.0"
 
 
 def test_favorite_always_covers_baseline_near_fifty_percent():

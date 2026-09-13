@@ -85,6 +85,16 @@ def home_cover_probability(margin_mean: pd.Series, margin_sigma: pd.Series, spre
     return pd.Series(1.0 - norm.cdf(z), index=margin_mean.index)
 
 
+def format_spread_side(team: str, spread_line: float, is_home: bool) -> str:
+    """Human-readable "TEAM +/-N.N" label in standard sportsbook display
+    convention (favorite shown negative), given nflverse's spread_line
+    (positive = home favored -- the OPPOSITE sign convention). Pulled out
+    of the prediction script so it has its own test after getting this
+    backwards once already (see test_spread_sign_convention.py)."""
+    display_line = -spread_line if is_home else spread_line
+    return f"{team} {display_line:+.1f}"
+
+
 def home_covers_actual(home_score: pd.Series, away_score: pd.Series, spread_line: pd.Series) -> pd.Series:
     margin = home_score - away_score
     result = margin - spread_line

@@ -27,11 +27,20 @@ from src.nfl.elo.engine import EloConfig, fit_hfa, run_elo
 from src.nfl.ensemble.blend import fit_and_predict_ensemble
 from src.nfl.models.moneyline.baselines import market_implied_home_prob
 from src.nfl.models.moneyline.logistic import build_features, walk_forward_logistic
+from src.nfl.models.moneyline.market_probs import (
+    market_implied_home_cover_prob,
+    market_implied_over_prob,
+)
 from src.nfl.models.moneyline.production import fit_and_predict_moneyline
-from src.nfl.models.spread.margin_model import home_cover_probability
+from src.nfl.models.spread.margin_model import (
+    format_spread_side,
+    home_cover_probability,
+    home_covers_actual,
+    walk_forward_margin,
+)
 from src.nfl.models.spread.production import fit_and_predict_margin
 from src.nfl.models.total.production import fit_and_predict_total
-from src.nfl.models.total.total_model import over_probability
+from src.nfl.models.total.total_model import over_actual, over_probability, walk_forward_total
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -94,11 +103,41 @@ def generate() -> Path:
     margin_df["pred_home_cover_prob"] = home_cover_probability(
         margin_df["margin_mean_pred"], margin_df["margin_sigma_pred"], margin_df["spread_line"]
     )
+    # Same historical-vs-production coalescing pattern as moneyline, so the
+    # ensemble has real out-of-sample model-vs-market training data.
+    cover_prob_historical = walk_forward_margin(elo_games)
+    cover_prob_historical["cover_prob_hist"] = home_cover_probability(
+        cover_prob_historical["margin_mean_pred"], cover_prob_historical["margin_sigma_pred"],
+        cover_prob_historical["spread_line"],
+    )
+    margin_df["pred_home_cover_prob"] = margin_df["pred_home_cover_prob"].combine_first(
+        cover_prob_historical["cover_prob_hist"]
+    )
+    margin_df["market_cover_prob"] = market_implied_home_cover_prob(margin_df)
+    cover_actual = home_covers_actual(margin_df["home_score"], margin_df["away_score"], margin_df["spread_line"])
+    margin_df["_cover_outcome_for_training"] = cover_actual.where(cover_actual != 0.5)
+    margin_df["pred_ensemble_cover_prob"] = fit_and_predict_ensemble(
+        margin_df, model_prob_col="pred_home_cover_prob", market_prob_col="market_cover_prob",
+        outcome_col="_cover_outcome_for_training",
+    )
 
     # ---- Total ----
     total_df = fit_and_predict_total(elo_games)
     total_df["pred_over_prob"] = over_probability(
         total_df["total_mean_pred"], total_df["total_sigma_pred"], total_df["total_line"]
+    )
+    over_prob_historical = walk_forward_total(elo_games)
+    over_prob_historical["over_prob_hist"] = over_probability(
+        over_prob_historical["total_mean_pred"], over_prob_historical["total_sigma_pred"],
+        over_prob_historical["total_line"],
+    )
+    total_df["pred_over_prob"] = total_df["pred_over_prob"].combine_first(over_prob_historical["over_prob_hist"])
+    total_df["market_over_prob"] = market_implied_over_prob(total_df)
+    over_act = over_actual(total_df["total_points"], total_df["total_line"])
+    total_df["_over_outcome_for_training"] = over_act.where(over_act != 0.5)
+    total_df["pred_ensemble_over_prob"] = fit_and_predict_ensemble(
+        total_df, model_prob_col="pred_over_prob", market_prob_col="market_over_prob",
+        outcome_col="_over_outcome_for_training",
     )
 
     # ---- Assemble the slate: only games not yet played ----
@@ -108,11 +147,13 @@ def generate() -> Path:
         & elo_games["home_score"].isna()
     ].copy()
     slate = slate.merge(
-        margin_df[["game_id", "margin_mean_pred", "margin_sigma_pred", "pred_home_cover_prob"]],
+        margin_df[["game_id", "margin_mean_pred", "margin_sigma_pred", "pred_home_cover_prob",
+                    "market_cover_prob", "pred_ensemble_cover_prob"]],
         on="game_id", how="left",
     )
     slate = slate.merge(
-        total_df[["game_id", "total_mean_pred", "total_sigma_pred", "pred_over_prob"]],
+        total_df[["game_id", "total_mean_pred", "total_sigma_pred", "pred_over_prob",
+                   "market_over_prob", "pred_ensemble_over_prob"]],
         on="game_id", how="left",
     )
 
@@ -124,9 +165,19 @@ def generate() -> Path:
 
         model_prob = row.pred_moneyline_model
         ensemble_prob = row.pred_ensemble_ml
-        edge = None
+        ml_edge = None
         if has_market_ml and pd.notna(ensemble_prob):
-            edge = round(float(ensemble_prob - row.pred_market_ml), 4)
+            ml_edge = round(float(ensemble_prob - row.pred_market_ml), 4)
+
+        cover_prob = row.pred_ensemble_cover_prob if pd.notna(row.pred_ensemble_cover_prob) else row.pred_home_cover_prob
+        cover_edge = None
+        if pd.notna(row.market_cover_prob) and pd.notna(cover_prob):
+            cover_edge = round(float(cover_prob - row.market_cover_prob), 4)
+
+        over_prob = row.pred_ensemble_over_prob if pd.notna(row.pred_ensemble_over_prob) else row.pred_over_prob
+        over_edge = None
+        if pd.notna(row.market_over_prob) and pd.notna(over_prob):
+            over_edge = round(float(over_prob - row.market_over_prob), 4)
 
         data_quality = []
         if not has_market_ml:
@@ -137,6 +188,37 @@ def generate() -> Path:
             data_quality.append("no_total_line")
         if pd.isna(model_prob):
             data_quality.append("insufficient_model_training_history")
+
+        # ---- Picks: the dashboard's headline field per market. Derived
+        # directly and only from the model/ensemble probability that already
+        # went through walk-forward backtesting above -- never re-decided by
+        # the site layer. A pick is still shown when only the raw model prob
+        # is available (no market odds for this book/line), flagged via
+        # data_quality_flags rather than fabricated.
+        ml_pick = None
+        if pd.notna(ensemble_prob) or pd.notna(model_prob):
+            p = ensemble_prob if pd.notna(ensemble_prob) else model_prob
+            ml_pick = {
+                "side": row.home_team if p >= 0.5 else row.away_team,
+                "probability": round(float(p if p >= 0.5 else 1 - p), 4),
+            }
+
+        spread_pick = None
+        if has_spread and pd.notna(cover_prob):
+            home_side = format_spread_side(row.home_team, row.spread_line, is_home=True)
+            away_side = format_spread_side(row.away_team, row.spread_line, is_home=False)
+            spread_pick = {
+                "side": home_side if cover_prob >= 0.5 else away_side,
+                "probability": round(float(cover_prob if cover_prob >= 0.5 else 1 - cover_prob), 4),
+            }
+
+        total_pick = None
+        if has_total and pd.notna(over_prob):
+            total_pick = {
+                "side": "OVER" if over_prob >= 0.5 else "UNDER",
+                "line": float(row.total_line),
+                "probability": round(float(over_prob if over_prob >= 0.5 else 1 - over_prob), 4),
+            }
 
         records.append({
             "game_id": row.game_id,
@@ -149,17 +231,26 @@ def generate() -> Path:
                 "model_home_win_prob": None if pd.isna(model_prob) else round(float(model_prob), 4),
                 "market_home_win_prob": None if not has_market_ml else round(float(row.pred_market_ml), 4),
                 "ensemble_home_win_prob": None if pd.isna(ensemble_prob) else round(float(ensemble_prob), 4),
-                "edge_vs_market": edge,
+                "edge_vs_market": ml_edge,
+                "pick": ml_pick,
             },
             "spread": {
                 "projected_margin_home": None if pd.isna(row.margin_mean_pred) else round(float(row.margin_mean_pred), 2),
                 "market_spread_line": None if not has_spread else float(row.spread_line),
                 "model_home_cover_prob": None if pd.isna(row.pred_home_cover_prob) else round(float(row.pred_home_cover_prob), 4),
+                "market_home_cover_prob": None if pd.isna(row.market_cover_prob) else round(float(row.market_cover_prob), 4),
+                "ensemble_home_cover_prob": None if pd.isna(row.pred_ensemble_cover_prob) else round(float(row.pred_ensemble_cover_prob), 4),
+                "edge_vs_market": cover_edge,
+                "pick": spread_pick,
             },
             "total": {
                 "projected_total": None if pd.isna(row.total_mean_pred) else round(float(row.total_mean_pred), 2),
                 "market_total_line": None if not has_total else float(row.total_line),
                 "model_over_prob": None if pd.isna(row.pred_over_prob) else round(float(row.pred_over_prob), 4),
+                "market_over_prob": None if pd.isna(row.market_over_prob) else round(float(row.market_over_prob), 4),
+                "ensemble_over_prob": None if pd.isna(row.pred_ensemble_over_prob) else round(float(row.pred_ensemble_over_prob), 4),
+                "edge_vs_market": over_edge,
+                "pick": total_pick,
             },
             "data_quality_flags": data_quality,
         })

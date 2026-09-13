@@ -57,33 +57,43 @@ this system does not yet have. See "What's not built yet" below.
 
 ### Spread / ATS (n = 4,069 games)
 
-| Metric | Model | Market |
+| Model | Accuracy | ECE |
 |---|---|---|
-| ATS accuracy | 0.4999 | -- (market is the reference line) |
-| Margin MAE | 10.43 pts | **10.08 pts** |
-| Cover-probability ECE | 0.073 | -- |
+| Model only (Ridge on Elo diff + rest diff) | 0.4999 | 0.0732 |
+| Ensemble (model + de-vigged spread juice) | 0.5031 | **0.0128** |
 
-Baselines: home-always-covers 0.4905, favorite-always-covers 0.4886 -- both
-appropriately close to 50%, confirming the closing line is efficient and the
-push-adjusted accuracy math is correct (see the sign-convention regression
-test below for why this number is *not* trivially checkable by eye).
+Margin MAE: model 10.43 pts vs. market (closing spread line as a point
+estimate) **10.08 pts**. Baselines: home-always-covers 0.4905,
+favorite-always-covers 0.4886 -- both appropriately close to 50%, confirming
+the closing line is efficient and the push-adjusted accuracy math is correct
+(see the sign-convention regression test below for why this number is *not*
+trivially checkable by eye).
 
-**Reading this honestly:** 49.99% ATS is a coin flip. The model's projected
-margin is slightly *worse* (higher MAE) than just using the closing spread
-line as a point estimate. **No ATS edge is demonstrated.**
+**Reading this honestly:** ~50% ATS either way is a coin flip. The model's
+projected margin is slightly *worse* (higher MAE) than just using the
+closing spread line as a point estimate. The ensemble materially improves
+calibration (ECE 0.073 -> 0.013) but **does not demonstrate an ATS edge.**
 
 ### Total / O-U (n = 4,134 games)
 
-| Metric | Model | Market |
+| Model | Accuracy | ECE |
 |---|---|---|
-| O/U accuracy | 0.5058 | -- |
-| Total MAE | 10.73 pts | 10.45 pts |
-| Over-probability ECE | 0.061 | -- |
+| Model only (Ridge on trailing scoring averages) | 0.5058 | 0.0609 |
+| Ensemble (model + de-vigged total juice) | 0.5007 | 0.0218 |
 
+Total MAE: model 10.73 pts vs. market (closing total line) **10.45 pts**.
 Baselines: always-over 0.4956, always-under 0.5044.
 
-**Reading this honestly:** near breakeven, as expected. **No totals edge is
-demonstrated.**
+**Reading this honestly:** near breakeven either way, as expected. **No
+totals edge is demonstrated.**
+
+Both ensembles use the same log-odds blending machinery as the moneyline
+ensemble (`ensemble/blend.py`, weights learned walk-forward, never touching
+the season being predicted) -- but blending against **de-vigged spread/total
+juice** (`home_spread_odds`/`away_spread_odds`, `over_odds`/`under_odds`,
+real data from 2006 onward) rather than a market-implied win probability,
+since a spread/total *line* is already set close to 50/50 by construction;
+the juice is what carries the market's residual lean.
 
 ### Home-field advantage (fit walk-forward, never hardcoded)
 
@@ -106,6 +116,27 @@ Full numbers: `data/processed/moneyline_backtest_metrics.csv`,
 `spread_total_backtest_summary.json`, `hfa_by_season.csv`. Reliability
 diagrams: `docs/assets/reliability_*.png` (also embedded in the published
 site).
+
+## Dashboard
+
+The published site (https://kshreyan.github.io/nfl-predict/) is a real
+pick dashboard, not just a metrics table: one card per game this week, with
+a color-coded pick row for **moneyline**, **spread**, and **total**,
+each showing:
+
+- the side the ensemble currently favors (e.g. `LAC`, `ARI +9.5`, `UNDER 47.5`)
+- its probability, with a confidence bar (green ≥70%, blue 58-70%, gray <58%
+  -- a near-coin-flip pick is deliberately *not* styled as confident)
+- edge vs. the market's own implied probability for that side
+- data-quality flags when a market line, odds, or enough model training
+  history isn't available for that game (never silently substituted)
+
+Every number on a card traces back to the exact same walk-forward-backtested
+model/ensemble code as the metrics above -- the site layer only formats and
+color-codes, it never re-derives a pick. Given the backtest results above,
+read a pick as "the model's calibrated view," not "a demonstrated edge":
+the legend on the page says this explicitly, and a large edge-vs-market
+number is flagged as "the model disagrees with the market," not "bet this."
 
 ## Anti-leakage guarantees
 
@@ -146,9 +177,14 @@ too-good-to-be-true backtest number is a bug report, not a result.**
   (Elo diff + rest diff), market-implied (de-vigged) baseline, log-odds
   ensemble with walk-forward-fit blend weights
 - Spread: Normal(mean, sigma) margin model (Ridge on Elo diff + rest diff),
-  cover probability via CDF against the actual closing line
+  cover probability via CDF against the actual closing line, ensembled with
+  de-vigged spread-juice-implied cover probability
 - Total: Normal(mean, sigma) points model (Ridge on leak-free trailing
-  team offense/defense averages), over probability via CDF
+  team offense/defense averages), over probability via CDF, ensembled with
+  de-vigged total-juice-implied over probability
+- Dashboard: per-game pick cards (moneyline/spread/total side, probability,
+  confidence, edge vs. market) on the published site, generated entirely
+  from the same backtested prediction snapshot -- no separate UI-layer logic
 - Calibration: isotonic regression, reliability diagrams, Brier, log loss, ECE
 - Walk-forward backtest across 2010-2025 (Elo burn-in from 1999) for all
   three markets, with baseline comparisons
