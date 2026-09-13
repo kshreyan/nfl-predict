@@ -1,0 +1,36 @@
+# Central configuration for the NFL prediction pipeline.
+# All season/week ranges here are "as-of" values -- nothing downstream is
+# allowed to read data outside [FIRST_SEASON, CURRENT_SEASON.CURRENT_WEEK].
+
+data:
+  first_season: 1999          # earliest season nflverse schedules go back to
+  # elo backtest starts later than first_season because early seasons are used
+  # purely to seed ratings / burn in the model
+  elo_backtest_start_season: 2003
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  predictions_dir: "data/predictions"
+
+elo:
+  initial_rating: 1500.0
+  k_factor: 20.0
+  mov_multiplier: true          # FiveThirtyEight-style margin-of-victory multiplier
+  season_regression: 0.33       # fraction reverted to 1505 mean at season start
+  preseason_mean: 1505.0
+  playoff_k_multiplier: 1.2
+  home_field_advantage: null    # null => fit from data, do not hardcode
+
+moneyline:
+  calibration_method: "isotonic"   # isotonic | platt
+  test_min_season: 2010             # first season used for reported backtest metrics
+                                     # (2003-2009 = Elo burn-in window)
+
+backtest:
+  mode: "walk_forward"
+  unit: "week"
+
+reporting:
+  realistic_ceilings:
+    moneyline_accuracy: [0.66, 0.69]
+    ats_accuracy: [0.52, 0.54]
+    totals_edge_vs_market: "near breakeven"
