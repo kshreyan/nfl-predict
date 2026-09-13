@@ -26,6 +26,7 @@ from src.nfl.data.ingest import fetch_pbp_for_epa, fetch_schedules
 from src.nfl.elo.engine import EloConfig, fit_hfa, run_elo
 from src.nfl.ensemble.blend import fit_and_predict_ensemble
 from src.nfl.features.epa_features import add_trailing_epa_features
+from src.nfl.features.qb_features import add_trailing_qb_features
 from src.nfl.models.moneyline.baselines import market_implied_home_prob
 from src.nfl.models.moneyline.logistic import build_features, walk_forward_logistic
 from src.nfl.models.moneyline.market_probs import (
@@ -74,10 +75,11 @@ def generate() -> Path:
     elo_games = run_elo(games, cfg)
     logger.info("Fitted HFA (all history as-of-now): %.1f Elo pts", hfa)
 
-    # ---- EPA (shared by all three markets) ----
+    # ---- EPA + QB (shared by all three markets) ----
     pbp = fetch_pbp_for_epa(seasons)
     elo_games = add_trailing_epa_features(elo_games, pbp, window=10)
-    logger.info("Added trailing EPA features from %d plays", len(pbp))
+    elo_games = add_trailing_qb_features(elo_games, pbp, window=10)
+    logger.info("Added trailing EPA + QB features from %d plays", len(pbp))
 
     # ---- Moneyline ----
     # `fit_and_predict_moneyline` only scores FUTURE games (by design). To train

@@ -59,6 +59,7 @@ EPA_PBP_COLUMNS = [
     "game_id", "week", "season_type", "posteam", "defteam",
     "play_type", "epa", "success", "pass", "rush", "down", "wind", "temp",
     "roof", "home_team", "away_team", "play", "wp",
+    "passer_id", "qb_dropback", "qb_epa",
 ]
 
 

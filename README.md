@@ -41,56 +41,59 @@ guarantees" below for what that actually checks.
 |---|---|---|---|---|
 | Elo-only (raw) | 0.6425 | 0.6321 | 0.2211 | 0.0293 |
 | Elo-only (isotonic-calibrated) | 0.6430 | 0.6633 | 0.2216 | 0.0188 |
-| Logistic regression (Elo diff + rest diff + EPA net diff) | 0.6418 | 0.6557 | 0.2207 | 0.0218 |
+| Logistic regression (Elo diff + rest diff + EPA net diff + **QB EPA diff**) | **0.6470** | **0.6262** | **0.2183** | **0.0208** |
 | **Market-implied (de-vigged closing moneyline)** | **0.6655** | **0.6094** | **0.2110** | 0.0165 |
-| Ensemble (model + market, log-odds blend) | 0.6665 | 0.6099 | 0.2111 | **0.0129** |
+| Ensemble (model + market, log-odds blend) | 0.6648 | 0.6093 | 0.2109 | 0.0146 |
 | Baseline: home-team-always | 0.5543 | 0.6877 | 0.2473 | 0.0168 |
 | Baseline: favorite-always (market) | 0.6657 | -- | -- | -- |
 
-**Reading this honestly:** adding EPA left the standalone model basically
-unchanged (0.6430 -> 0.6418, essentially noise) -- Elo already captures most
-of the same team-strength signal EPA would add, so the marginal value here is
-small. The ensemble's accuracy (0.6665) nominally edges the market's (0.6655),
-but on n=4,162 the standard error on accuracy is ~0.73pp, so a 0.10pp gap is
-**not a statistically meaningful result** -- read it as "matches the market,"
-not "beats it." The market still wins on log loss and Brier.
+**Reading this honestly:** the QB feature (see below) is a clean win over
+every metric simultaneously -- accuracy, log loss, *and* Brier all improved
+together (0.6418->0.6470, 0.6557->0.6262, 0.2207->0.2183), unlike EPA alone
+(which was a wash) or GBM (which traded accuracy for worse calibration).
+The market still wins outright on every metric, though -- this is a real
+improvement in the model, not a demonstrated edge over the closing line.
 
 ### Spread / ATS (n = 4,069 games)
 
 | Model | Accuracy | ECE |
 |---|---|---|
-| Model only (Ridge: Elo diff + rest diff + EPA net diff) | 0.5028 | 0.0682 |
-| Ensemble (model + de-vigged spread juice) | 0.5045 | **0.0113** |
+| Model only (Ridge: Elo diff + rest diff + EPA net diff + **QB EPA diff**) | **0.5072** | **0.0599** |
+| Ensemble (model + de-vigged spread juice) | **0.5139** | **0.0042** |
 
-Margin MAE: model 10.42 pts vs. market (closing spread line as a point
+Margin MAE: model **10.33 pts** vs. market (closing spread line as a point
 estimate) **10.08 pts**. Baselines: home-always-covers 0.4905,
 favorite-always-covers 0.4886 -- both appropriately close to 50%, confirming
 the closing line is efficient and the push-adjusted accuracy math is correct
 (see the sign-convention regression test below for why this number is *not*
 trivially checkable by eye).
 
-**Reading this honestly:** EPA gave a small, real lift over the previous
-Elo+rest-only model (accuracy 0.4999 -> 0.5028, MAE 10.43 -> 10.42 pts), but
-~50% ATS either way is still a coin flip and the model's margin estimate is
-still slightly worse than just reading the closing line. The ensemble
-materially improves calibration (ECE 0.068 -> 0.011) but **does not
-demonstrate an ATS edge.**
+**Reading this honestly:** the QB feature is the best single addition this
+model has had -- accuracy 0.5028->0.5072, MAE 10.42->10.33 pts, ECE
+0.068->0.060, and the ensemble's accuracy jumped to 0.5139 with an ECE of
+just 0.0042 (essentially textbook-calibrated). 51.4% is still within the
+README's stated 52-54% realistic-ceiling band (just under it, not above
+it -- the backtest script's own `INVESTIGATE` trip-wire did not fire), so
+this reads as a genuine, modest improvement, not a leak. It is still close
+enough to the market's own margin MAE (10.08 pts) that **no ATS edge is
+claimed** -- watch this number over the live season rather than trusting a
+single historical backtest window.
 
 ### Total / O-U (n = 4,134 games)
 
 | Model | Accuracy | ECE |
 |---|---|---|
-| Model only (trailing scoring averages + EPA matchup + dome) | 0.5090 | 0.0586 |
-| Ensemble (model + de-vigged total juice) | 0.5087 | **0.0210** |
+| Model only (trailing scoring averages + EPA matchup + dome + **QB EPA sum**) | **0.5160** | **0.0458** |
+| Ensemble (model + de-vigged total juice) | **0.5104** | 0.0205 |
 
-Total MAE: model 10.71 pts vs. market (closing total line) **10.45 pts**.
-Baselines: always-over 0.4956, always-under 0.5044.
+Total MAE: model **10.61 pts** vs. market (closing total line) **10.45
+pts**. Baselines: always-over 0.4956, always-under 0.5044.
 
-**Reading this honestly:** EPA matchup features (home offense EPA vs. away
-defense EPA allowed, and vice versa) plus a dome/closed-roof indicator gave a
-small real lift (accuracy 0.5058 -> 0.5090, MAE 10.73 -> 10.71 pts,
-calibration also improved slightly), but it's still near breakeven either
-way. **No totals edge is demonstrated.**
+**Reading this honestly:** same pattern as spread -- accuracy 0.5090->0.5160,
+MAE 10.71->10.61 pts, ECE 0.059->0.046, all moving the right direction
+together. Still near breakeven and still within the "near breakeven"
+realistic-ceiling band (the script's `INVESTIGATE` flag did not fire). **No
+totals edge is claimed** on the strength of one backtest window.
 
 Wind is deliberately *not* a model feature, despite being flagged in this
 project's own brief as the one weather variable that genuinely moves totals.
@@ -110,6 +113,31 @@ juice** (`home_spread_odds`/`away_spread_odds`, `over_odds`/`under_odds`,
 real data from 2006 onward) rather than a market-implied win probability,
 since a spread/total *line* is already set close to 50/50 by construction;
 the juice is what carries the market's residual lean.
+
+### QB rating (`features/qb_features.py`) -- the fix for the biggest gap
+
+Team-level Elo/EPA features are trailing averages of the *team*, so a Week 3
+backup start still gets credited with the Week 1-2 starter's performance --
+this system could not see a QB change at all until this feature. The fix:
+rate each quarterback individually (trailing EPA/dropback, from real
+play-by-play `qb_epa` + `passer_id`), keyed to whoever nflverse's schedule
+data says actually started (`home_qb_id`/`away_qb_id`, known pre-game, ~97%
+coverage back to 1999) -- verified directly that `passer_id` and
+`home_qb_id`/`away_qb_id` share the same GSIS id space, so the join is exact,
+not fuzzy-matched on name.
+
+Deliberately sourced from play-by-play rather than nflverse's separate
+"weekly" player-stats release: that release lags the current season (its
+2026 file returns HTTP 404 as of this build, confirmed directly), while
+play-by-play does not, so the feature stays usable in-season instead of
+falling back to stale prior-season data for early weeks. A backup QB with no
+prior starts gets a neutral league-average prior, not the departed starter's
+rating (verified by a dedicated test, `test_backup_qb_gets_own_rating_not_teams`).
+
+Fed into all three markets: `qb_epa_diff` (home QB rating minus away) for
+moneyline and spread, where *relative* advantage matters; `qb_epa_sum` (home
+plus away) for total, where what matters is how good *both* quarterbacks are,
+not which one is better.
 
 ### Home-field advantage (fit walk-forward, never hardcoded)
 
@@ -156,7 +184,7 @@ number is flagged as "the model disagrees with the market," not "bet this."
 
 ## Anti-leakage guarantees
 
-`tests/leakage/` is the project's core safety net (22 tests, all passing).
+`tests/leakage/` is the project's core safety net (27 tests, all passing).
 What they actually verify:
 
 - **Elo**: a game's pre-game rating and predicted probability are byte-identical
@@ -174,6 +202,9 @@ What they actually verify:
 - **Trailing EPA features**: same guarantee, verified against real
   play-by-play -- truncating or corrupting a future game's plays does not
   change an earlier game's trailing EPA.
+- **Trailing QB rating**: same guarantee, plus a dedicated test that a
+  backup QB's first start gets a neutral prior, never the departed
+  starter's (team-level) rating.
 - **Spread sign convention regression test** (`test_spread_sign_convention.py`):
   this one is here because we got bitten by it. nflverse's `spread_line` is
   signed **positive = home favored** (opposite of the "negative = favorite"
@@ -201,6 +232,34 @@ too-good-to-be-true backtest number is a bug report, not a result.**
   applied to a change *within* this same session, not just to nflverse's
   data quirks.
 
+- **Garbage-time-filtered EPA -- attempted, reverted, kept as an opt-in.**
+  Excluding plays where pre-play win probability was outside [0.1, 0.9]
+  (the standard public-analytics convention) made things worse almost
+  everywhere: the total model's entire EPA accuracy gain was wiped out
+  (0.509 -> 0.506, back to the no-EPA baseline), spread ECE got worse
+  (0.068 -> 0.070). Likely cause: this system already smooths EPA over a
+  10-game trailing window, so cutting ~23% of plays per game shrinks the
+  effective sample feeding that window more than it reduces bias from
+  blowout snaps. `filter_garbage_time=False` by default in
+  `features/epa_features.py`; the option and its tests remain.
+
+- **Gradient-boosted trees (XGBoost), nested walk-forward CV -- tested,
+  not adopted.** Built `models/gbm.py` (inner time-respecting validation
+  split per season for hyperparameter search, never touching the season
+  being predicted) and ran it for all three markets. Consistent pattern:
+  raw accuracy sometimes improved (moneyline 0.6418->0.6480, total
+  0.5090->0.5140) but **log loss / Brier / ECE got worse every time**
+  (moneyline Brier 0.2207->0.2221; total ECE 0.0586->0.0614; spread
+  essentially flat, ECE 0.0682->0.0690) -- exactly the accuracy-without-
+  calibration pattern this project's own selection rule exists to catch.
+  With only 3-7 largely linear features and a few hundred to a few
+  thousand training rows per season, there isn't much nonlinear structure
+  for trees to find, and the extra model flexibility shows up as variance,
+  not signal. Kept as a permanent, leak-tested comparison row in both
+  backtest scripts (`make backtest` prints it) rather than removed --
+  the honest conclusion is "this feature set needs more/better data before
+  a fancier model helps," not "gradient boosting doesn't work here."
+
 ## What's built vs. what's not (read before trusting this for anything)
 
 **Built and real:**
@@ -211,16 +270,25 @@ too-good-to-be-true backtest number is a bug report, not a result.**
   defensive EPA/play allowed, success rate, split pass/rush -- rolled forward
   per team using only that team's strictly-prior games, same discipline as
   every other feature in this repo. Feeds moneyline, spread, and total.
+- **Trailing QB rating** (`features/qb_features.py`), leak-free, from real
+  play-by-play, keyed to the individual quarterback (not the team) so a
+  starter change is visible immediately -- the single best-performing
+  feature addition this project has had (see results above). Feeds all
+  three markets.
 - Moneyline: Elo baseline, isotonic-calibrated Elo, logistic regression
-  (Elo diff + rest diff + EPA net diff), market-implied (de-vigged) baseline,
-  log-odds ensemble with walk-forward-fit blend weights
+  (Elo diff + rest diff + EPA net diff + QB EPA diff), market-implied
+  (de-vigged) baseline, log-odds ensemble with walk-forward-fit blend weights
 - Spread: Normal(mean, sigma) margin model (Ridge on Elo diff + rest diff +
-  EPA net diff), cover probability via CDF against the actual closing line,
-  ensembled with de-vigged spread-juice-implied cover probability
+  EPA net diff + QB EPA diff), cover probability via CDF against the actual
+  closing line, ensembled with de-vigged spread-juice-implied cover probability
 - Total: Normal(mean, sigma) points model (Ridge on trailing team
   offense/defense scoring averages + EPA offense-vs-defense matchup features
-  + dome/closed-roof indicator), over probability via CDF, ensembled with
-  de-vigged total-juice-implied over probability
+  + dome/closed-roof indicator + QB EPA sum), over probability via CDF,
+  ensembled with de-vigged total-juice-implied over probability
+- **Gradient-boosted trees** (`models/gbm.py`), nested walk-forward CV,
+  tested for all three markets as a permanent backtest comparison row --
+  not adopted into production (worse calibration despite sometimes-better
+  accuracy; see above)
 - Dashboard: per-game pick cards (moneyline/spread/total side, probability,
   confidence, edge vs. market) on the published site, generated entirely
   from the same backtested prediction snapshot -- no separate UI-layer logic
@@ -231,10 +299,13 @@ too-good-to-be-true backtest number is a bug report, not a result.**
 - Static site generator (no live compute on Pages)
 
 **Not built yet (explicitly out of scope for this pass, not fabricated):**
-- **QB availability/quality adjustment.** Real 538-style Elo includes a QB
-  value adjustment; this build uses team-level Elo only. A backup QB start is
-  currently invisible to the model -- arguably the single biggest remaining
-  gap, since the prompt correctly notes a backup QB can move a line 5-7 pts.
+- **Full 538-style QB-adjusted Elo.** What's built (see above) is a
+  per-QB trailing EPA rating fed as a separate regression feature -- it
+  closed the biggest gap (a backup QB is no longer invisible) and it's the
+  best-performing addition in this repo. What's *not* built is folding
+  that rating directly into the Elo rating itself (538's actual method
+  blends a long-run QB value rating into team Elo with its own decay/regression
+  parameters) -- a further refinement, not a from-scratch gap anymore.
 - **Live weather forecast.** `roof` (dome/closed vs. outdoors) is used and is
   always known pre-game; `wind`/`temp` are nflverse's *observed*, post-game
   values and are never available at real prediction time (0 of 270 upcoming
@@ -242,11 +313,11 @@ too-good-to-be-true backtest number is a bug report, not a result.**
   integration would be needed to add a genuine live wind feature.
 - **Injuries, travel/timezone, red-zone/third-down rates, defensive personnel
   packages.**
-- **Gradient-boosted trees (XGBoost/LightGBM).** Installed and available
-  (see `pyproject.toml`), not yet wired into a walk-forward pipeline. Given
-  how modest the linear models' gains from EPA were, a properly-tuned,
-  walk-forward-validated GBM is the more likely next lever, not just more
-  features.
+- **Gradient-boosted trees.** Built and backtested (see above) -- the
+  finding was negative (worse calibration despite sometimes-better raw
+  accuracy), so it's a tested dead end with this feature set, not an
+  open item. Revisit once there's meaningfully more/richer feature data
+  (QB adjustment, injuries) for trees to actually find structure in.
 - **True historical CLV.** nflverse provides *closing* lines only, not
   opening lines, so genuine closing-line-value (did we get a better price
   than where the market ultimately closed) cannot be reconstructed

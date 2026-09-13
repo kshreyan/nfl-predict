@@ -16,6 +16,7 @@ from src.nfl.data.ingest import load_cached_pbp_for_epa, load_cached_schedules
 from src.nfl.ensemble.blend import walk_forward_ensemble
 from src.nfl.evaluation.metrics import expected_calibration_error, summarize
 from src.nfl.features.epa_features import add_trailing_epa_features
+from src.nfl.features.qb_features import add_trailing_qb_features
 from src.nfl.models.moneyline.market_probs import (
     market_implied_home_cover_prob,
     market_implied_over_prob,
@@ -25,11 +26,13 @@ from src.nfl.models.spread.margin_model import (
     home_covers_actual,
     walk_forward_margin,
 )
+from src.nfl.models.spread.xgb_model import walk_forward_xgb_margin
 from src.nfl.models.total.total_model import (
     over_actual,
     over_probability,
     walk_forward_total,
 )
+from src.nfl.models.total.xgb_model import walk_forward_xgb_total
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -52,7 +55,8 @@ def main() -> None:
 
     pbp = load_cached_pbp_for_epa()
     elo_games = add_trailing_epa_features(elo_games, pbp, window=10)
-    logger.info("Added trailing EPA features from %d plays", len(pbp))
+    elo_games = add_trailing_qb_features(elo_games, pbp, window=10)
+    logger.info("Added trailing EPA + QB features from %d plays", len(pbp))
 
     # ---------------- SPREAD (ATS) ----------------
     margin_df = walk_forward_margin(elo_games)
@@ -123,6 +127,33 @@ def main() -> None:
                 ens_ats_summary["accuracy"], ens_ats_summary["n"], ens_ats_summary["log_loss"],
                 ens_ats_summary["ece"])
 
+    logger.info("Fitting walk-forward XGBoost margin model (nested CV per season)...")
+    xgb_margin_df = walk_forward_xgb_margin(elo_games)
+    xgb_margin_df["home_cover_prob"] = home_cover_probability(
+        xgb_margin_df["margin_mean_pred"], xgb_margin_df["margin_sigma_pred"], xgb_margin_df["spread_line"]
+    )
+    xgb_margin_df["home_covers_actual"] = home_covers_actual(
+        xgb_margin_df["home_score"], xgb_margin_df["away_score"], xgb_margin_df["spread_line"]
+    )
+    xgb_ats_eval = xgb_margin_df[
+        (xgb_margin_df["game_type"] == "REG") & xgb_margin_df["home_covers_actual"].notna()
+        & xgb_margin_df["home_cover_prob"].notna() & xgb_margin_df["spread_line"].notna()
+        & (xgb_margin_df["season"] >= REPORTED_METRICS_START_SEASON) & (xgb_margin_df["season"] <= 2025)
+    ]
+    xgb_ats_eval_no_push = xgb_ats_eval[xgb_ats_eval["home_covers_actual"] != 0.5]
+    xgb_ats_acc = float(np.mean(
+        (xgb_ats_eval_no_push["home_cover_prob"] >= 0.5).astype(float).values
+        == xgb_ats_eval_no_push["home_covers_actual"].values
+    ))
+    xgb_margin_mae = float(np.mean(np.abs(
+        (xgb_ats_eval["home_score"] - xgb_ats_eval["away_score"]) - xgb_ats_eval["margin_mean_pred"]
+    )))
+    xgb_ats_ece = expected_calibration_error(
+        xgb_ats_eval_no_push["home_cover_prob"].values, xgb_ats_eval_no_push["home_covers_actual"].values
+    )
+    logger.info("XGBoost margin model: ATS accuracy=%.4f, MAE=%.3f, ECE=%.4f (Ridge: acc=%.4f, MAE=%.3f, ECE=%.4f)",
+                xgb_ats_acc, xgb_margin_mae, xgb_ats_ece, ats_accuracy, margin_mae, ats_ece)
+
     # ---------------- TOTAL (Over/Under) ----------------
     total_df = walk_forward_total(elo_games)
     total_df["over_prob"] = over_probability(
@@ -174,6 +205,29 @@ def main() -> None:
     logger.info("Ensemble (model+market) O/U accuracy: %.4f (n=%d, log_loss=%.4f, ece=%.4f)",
                 ens_ou_summary["accuracy"], ens_ou_summary["n"], ens_ou_summary["log_loss"],
                 ens_ou_summary["ece"])
+
+    logger.info("Fitting walk-forward XGBoost total model (nested CV per season)...")
+    xgb_total_df = walk_forward_xgb_total(elo_games)
+    xgb_total_df["over_prob"] = over_probability(
+        xgb_total_df["total_mean_pred"], xgb_total_df["total_sigma_pred"], xgb_total_df["total_line"]
+    )
+    xgb_total_df["over_actual"] = over_actual(xgb_total_df["total_points"], xgb_total_df["total_line"])
+    xgb_ou_eval = xgb_total_df[
+        (xgb_total_df["game_type"] == "REG") & xgb_total_df["over_actual"].notna()
+        & xgb_total_df["over_prob"].notna() & xgb_total_df["total_line"].notna()
+        & (xgb_total_df["season"] >= REPORTED_METRICS_START_SEASON) & (xgb_total_df["season"] <= 2025)
+    ]
+    xgb_ou_eval_no_push = xgb_ou_eval[xgb_ou_eval["over_actual"] != 0.5]
+    xgb_ou_acc = float(np.mean(
+        (xgb_ou_eval_no_push["over_prob"] >= 0.5).astype(float).values
+        == xgb_ou_eval_no_push["over_actual"].values
+    ))
+    xgb_total_mae = float(np.mean(np.abs(xgb_ou_eval["total_points"] - xgb_ou_eval["total_mean_pred"])))
+    xgb_ou_ece = expected_calibration_error(
+        xgb_ou_eval_no_push["over_prob"].values, xgb_ou_eval_no_push["over_actual"].values
+    )
+    logger.info("XGBoost total model: O/U accuracy=%.4f, MAE=%.3f, ECE=%.4f (Ridge: acc=%.4f, MAE=%.3f, ECE=%.4f)",
+                xgb_ou_acc, xgb_total_mae, xgb_ou_ece, ou_accuracy, total_mae, ou_ece)
 
     # ---------------- persist ----------------
     out_dir = Path("data/processed")

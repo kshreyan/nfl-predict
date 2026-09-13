@@ -25,15 +25,17 @@ import pandas as pd
 from scipy.stats import norm
 from sklearn.linear_model import Ridge
 
-FEATURE_COLS = ["elo_diff", "rest_diff", "epa_net_diff"]
+FEATURE_COLS = ["elo_diff", "rest_diff", "epa_net_diff", "qb_epa_diff"]
 
 
 def build_margin_features(elo_games: pd.DataFrame) -> pd.DataFrame:
     """`elo_games` is expected to already carry trailing EPA columns from
     features/epa_features.add_trailing_epa_features (home_off_epa_trailing,
-    home_def_epa_allowed_trailing, away_*) -- that step runs once upstream
-    in the backtest/production orchestration scripts, not here, since it
-    needs the separate play-by-play frame this function doesn't take."""
+    home_def_epa_allowed_trailing, away_*) and trailing QB columns from
+    features/qb_features.add_trailing_qb_features (home_qb_epa_trailing,
+    away_qb_epa_trailing) -- both steps run once upstream in the
+    backtest/production orchestration scripts, not here, since they need
+    the separate play-by-play frame this function doesn't take."""
     df = elo_games.copy()
     df["elo_diff"] = df["pre_home_elo"] - df["pre_away_elo"]
     df["home_rest"] = df.get("home_rest", np.nan)
@@ -43,6 +45,8 @@ def build_margin_features(elo_games: pd.DataFrame) -> pd.DataFrame:
     home_net_epa = df["home_off_epa_trailing"] - df["home_def_epa_allowed_trailing"]
     away_net_epa = df["away_off_epa_trailing"] - df["away_def_epa_allowed_trailing"]
     df["epa_net_diff"] = home_net_epa - away_net_epa
+
+    df["qb_epa_diff"] = df["home_qb_epa_trailing"] - df["away_qb_epa_trailing"]
 
     df["margin"] = df["home_score"] - df["away_score"]
     return df

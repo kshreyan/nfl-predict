@@ -14,6 +14,7 @@ from src.nfl.elo.engine import EloConfig, run_elo_walk_forward
 from src.nfl.ensemble.blend import walk_forward_ensemble
 from src.nfl.evaluation.metrics import reliability_table, summarize
 from src.nfl.features.epa_features import add_trailing_epa_features
+from src.nfl.features.qb_features import add_trailing_qb_features
 from src.nfl.models.moneyline.baselines import (
     favorite_always_pred,
     home_always_walk_forward,
@@ -21,6 +22,7 @@ from src.nfl.models.moneyline.baselines import (
 )
 from src.nfl.models.moneyline.calibrated_elo import walk_forward_calibrate_elo
 from src.nfl.models.moneyline.logistic import walk_forward_logistic
+from src.nfl.models.moneyline.xgb_model import walk_forward_xgb_moneyline
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -42,7 +44,8 @@ def main() -> None:
 
     pbp = load_cached_pbp_for_epa()
     elo_games = add_trailing_epa_features(elo_games, pbp, window=10)
-    logger.info("Added trailing EPA features from %d plays", len(pbp))
+    elo_games = add_trailing_qb_features(elo_games, pbp, window=10)
+    logger.info("Added trailing EPA + QB features from %d plays", len(pbp))
 
     logger.info("\nFitted home-field advantage by season (Elo points, prior-data-only fit):")
     hfa_series = pd.Series(hfa_by_season).sort_index()
@@ -54,6 +57,8 @@ def main() -> None:
     elo_games["pred_elo_raw"] = elo_games["elo_home_win_prob"]
     elo_games["pred_elo_calibrated"] = walk_forward_calibrate_elo(elo_games)
     elo_games["pred_logistic"] = walk_forward_logistic(elo_games)
+    logger.info("Fitting walk-forward XGBoost moneyline model (nested CV per season)...")
+    elo_games["pred_xgb"] = walk_forward_xgb_moneyline(elo_games)
     elo_games["pred_market"] = market_implied_home_prob(elo_games)
     elo_games["pred_home_always"] = home_always_walk_forward(elo_games)
     elo_games["pred_favorite_always"] = favorite_always_pred(elo_games)
@@ -94,6 +99,10 @@ def main() -> None:
     log_mask = eval_df["pred_logistic"].notna()
     rows.append(summarize(eval_df.loc[log_mask, "pred_logistic"].values, y[log_mask.values],
                            f"logistic_regression (n={log_mask.sum()})"))
+
+    xgb_mask = eval_df["pred_xgb"].notna()
+    rows.append(summarize(eval_df.loc[xgb_mask, "pred_xgb"].values, y[xgb_mask.values],
+                           f"xgboost (nested-CV tuned, n={xgb_mask.sum()})"))
 
     mkt_mask = eval_df["pred_market"].notna()
     rows.append(summarize(eval_df.loc[mkt_mask, "pred_market"].values, y[mkt_mask.values],

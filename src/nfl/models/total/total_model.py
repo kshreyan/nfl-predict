@@ -17,13 +17,14 @@ from src.nfl.features.rolling_scoring import add_trailing_scoring_features
 
 FEATURE_COLS = [
     "home_off_trailing", "home_def_trailing", "away_off_trailing", "away_def_trailing",
-    "home_epa_matchup", "away_epa_matchup", "is_dome",
+    "home_epa_matchup", "away_epa_matchup", "is_dome", "qb_epa_sum",
 ]
 
 
 def build_total_features(games: pd.DataFrame, window: int = 16) -> pd.DataFrame:
     """`games` is expected to already carry trailing EPA columns from
-    features/epa_features.add_trailing_epa_features (see margin_model.py's
+    features/epa_features.add_trailing_epa_features and trailing QB columns
+    from features/qb_features.add_trailing_qb_features (see margin_model.py's
     equivalent note) -- box-score trailing scoring features are computed
     here since they don't need the separate play-by-play frame.
 
@@ -39,6 +40,10 @@ def build_total_features(games: pd.DataFrame, window: int = 16) -> pd.DataFrame:
     df["home_epa_matchup"] = df["home_off_epa_trailing"] - df["away_def_epa_allowed_trailing"]
     df["away_epa_matchup"] = df["away_off_epa_trailing"] - df["home_def_epa_allowed_trailing"]
     df["is_dome"] = df["roof"].isin(["dome", "closed"]).astype(float)
+    # Sum, not diff: for total points, what matters is how good BOTH
+    # quarterbacks are (raises the combined scoring ceiling), not which
+    # team's QB is relatively better (that's a margin signal, not a total one).
+    df["qb_epa_sum"] = df["home_qb_epa_trailing"] + df["away_qb_epa_trailing"]
     return df
 
 

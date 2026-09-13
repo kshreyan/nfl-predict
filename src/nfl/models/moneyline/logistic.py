@@ -13,7 +13,7 @@ import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
 
-FEATURE_COLS = ["elo_diff", "rest_diff", "epa_net_diff"]
+FEATURE_COLS = ["elo_diff", "rest_diff", "epa_net_diff", "qb_epa_diff"]
 
 
 def build_features(elo_games: pd.DataFrame) -> pd.DataFrame:
@@ -31,6 +31,8 @@ def build_features(elo_games: pd.DataFrame) -> pd.DataFrame:
     home_net_epa = df["home_off_epa_trailing"] - df["home_def_epa_allowed_trailing"]
     away_net_epa = df["away_off_epa_trailing"] - df["away_def_epa_allowed_trailing"]
     df["epa_net_diff"] = home_net_epa - away_net_epa
+
+    df["qb_epa_diff"] = df["home_qb_epa_trailing"] - df["away_qb_epa_trailing"]
 
     df["home_won"] = np.where(
         df["home_score"] > df["away_score"], 1,
