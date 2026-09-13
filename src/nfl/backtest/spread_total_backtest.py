@@ -12,9 +12,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.nfl.data.ingest import load_cached_schedules
+from src.nfl.data.ingest import load_cached_pbp_for_epa, load_cached_schedules
 from src.nfl.ensemble.blend import walk_forward_ensemble
 from src.nfl.evaluation.metrics import expected_calibration_error, summarize
+from src.nfl.features.epa_features import add_trailing_epa_features
 from src.nfl.models.moneyline.market_probs import (
     market_implied_home_cover_prob,
     market_implied_over_prob,
@@ -48,6 +49,10 @@ def main() -> None:
     raw = load_cached_schedules()
 
     logger.info("Loaded %d Elo-augmented games", len(elo_games))
+
+    pbp = load_cached_pbp_for_epa()
+    elo_games = add_trailing_epa_features(elo_games, pbp, window=10)
+    logger.info("Added trailing EPA features from %d plays", len(pbp))
 
     # ---------------- SPREAD (ATS) ----------------
     margin_df = walk_forward_margin(elo_games)

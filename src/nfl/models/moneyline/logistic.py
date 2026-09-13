@@ -13,10 +13,13 @@ import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
 
-FEATURE_COLS = ["elo_diff", "rest_diff"]
+FEATURE_COLS = ["elo_diff", "rest_diff", "epa_net_diff"]
 
 
 def build_features(elo_games: pd.DataFrame) -> pd.DataFrame:
+    """`elo_games` is expected to already carry trailing EPA columns from
+    features/epa_features.add_trailing_epa_features (see
+    models/spread/margin_model.py's identical note)."""
     df = elo_games.copy()
     df["elo_diff"] = (df["pre_home_elo"] + 0.0) - df["pre_away_elo"]
     # home_field is already folded into elo_home_win_prob via HFA in the engine;
@@ -24,6 +27,11 @@ def build_features(elo_games: pd.DataFrame) -> pd.DataFrame:
     df["home_rest"] = df.get("home_rest", np.nan)
     df["away_rest"] = df.get("away_rest", np.nan)
     df["rest_diff"] = (df["home_rest"].fillna(7) - df["away_rest"].fillna(7)).clip(-10, 10)
+
+    home_net_epa = df["home_off_epa_trailing"] - df["home_def_epa_allowed_trailing"]
+    away_net_epa = df["away_off_epa_trailing"] - df["away_def_epa_allowed_trailing"]
+    df["epa_net_diff"] = home_net_epa - away_net_epa
+
     df["home_won"] = np.where(
         df["home_score"] > df["away_score"], 1,
         np.where(df["home_score"] < df["away_score"], 0, np.nan),

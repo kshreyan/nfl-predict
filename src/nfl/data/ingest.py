@@ -48,14 +48,32 @@ def fetch_schedules(seasons: list[int]) -> pd.DataFrame:
     return df
 
 
-def fetch_pbp(seasons: list[int]) -> pd.DataFrame:
-    """Play-by-play (used later for EPA aggregation). Cached per-call by caller."""
-    df = nfl.import_pbp_data(seasons, downcast=True, cache=False)
+EPA_PBP_COLUMNS = [
+    "game_id", "season", "week", "season_type", "posteam", "defteam",
+    "play_type", "epa", "success", "pass", "rush", "down", "wind", "temp",
+    "roof", "home_team", "away_team", "play",
+]
+
+
+def fetch_pbp_for_epa(seasons: list[int]) -> pd.DataFrame:
+    """Play-by-play, reduced to the columns EPA aggregation actually needs
+    (full pbp is 397 columns / ~1.2M rows across history -- unfiltered that's
+    multiple GB in memory for no benefit here). Cached as pbp_epa.parquet."""
+    df = nfl.import_pbp_data(
+        seasons, columns=EPA_PBP_COLUMNS, include_participation=False,
+        downcast=True, cache=False, thread_requests=True,
+    )
     if df.empty:
         raise RuntimeError(f"nfl_data_py returned empty pbp for seasons={seasons}")
-    _write_with_provenance(df, f"pbp_{min(seasons)}_{max(seasons)}", seasons,
-                            "nfl_data_py.import_pbp_data (nflverse)")
+    _write_with_provenance(df, "pbp_epa", seasons, "nfl_data_py.import_pbp_data (nflverse, EPA columns only)")
     return df
+
+
+def load_cached_pbp_for_epa() -> pd.DataFrame:
+    path = RAW_DIR / "pbp_epa.parquet"
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found -- run fetch_pbp_for_epa() first")
+    return pd.read_parquet(path)
 
 
 def load_cached_schedules() -> pd.DataFrame:
@@ -72,3 +90,4 @@ if __name__ == "__main__":
     current_year = dt.date.today().year
     seasons = list(range(1999, current_year + 1))
     fetch_schedules(seasons)
+    fetch_pbp_for_epa(seasons)

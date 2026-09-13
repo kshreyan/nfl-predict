@@ -9,10 +9,11 @@ import logging
 import numpy as np
 import pandas as pd
 
-from src.nfl.data.ingest import load_cached_schedules
+from src.nfl.data.ingest import load_cached_pbp_for_epa, load_cached_schedules
 from src.nfl.elo.engine import EloConfig, run_elo_walk_forward
 from src.nfl.ensemble.blend import walk_forward_ensemble
 from src.nfl.evaluation.metrics import reliability_table, summarize
+from src.nfl.features.epa_features import add_trailing_epa_features
 from src.nfl.models.moneyline.baselines import (
     favorite_always_pred,
     home_always_walk_forward,
@@ -38,6 +39,10 @@ def main() -> None:
     cfg = EloConfig()
     elo_games, hfa_by_season = run_elo_walk_forward(games, cfg)
     elo_games = elo_games.sort_values(["season", "week", "gameday", "game_id"]).reset_index(drop=True)
+
+    pbp = load_cached_pbp_for_epa()
+    elo_games = add_trailing_epa_features(elo_games, pbp, window=10)
+    logger.info("Added trailing EPA features from %d plays", len(pbp))
 
     logger.info("\nFitted home-field advantage by season (Elo points, prior-data-only fit):")
     hfa_series = pd.Series(hfa_by_season).sort_index()

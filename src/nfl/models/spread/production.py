@@ -23,9 +23,10 @@ def fit_and_predict_margin(elo_games: pd.DataFrame) -> pd.DataFrame:
         df["margin_sigma_pred"] = sigma_pred
         return df
 
+    X_train = train[FEATURE_COLS].values
     model = Ridge(alpha=10.0)
-    model.fit(train[FEATURE_COLS].values, train["margin"].values)
-    resid = train["margin"].values - model.predict(train[FEATURE_COLS].values)
+    model.fit(X_train, train["margin"].values)
+    resid = train["margin"].values - model.predict(X_train)
     sigma = float(np.std(resid, ddof=1))
 
     preds = model.predict(target[FEATURE_COLS].values)

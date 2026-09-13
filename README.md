@@ -41,51 +41,67 @@ guarantees" below for what that actually checks.
 |---|---|---|---|---|
 | Elo-only (raw) | 0.6425 | 0.6321 | 0.2211 | 0.0293 |
 | Elo-only (isotonic-calibrated) | 0.6430 | 0.6633 | 0.2216 | 0.0188 |
-| Logistic regression (Elo diff + rest diff) | 0.6430 | 0.6568 | 0.2211 | 0.0216 |
+| Logistic regression (Elo diff + rest diff + EPA net diff) | 0.6418 | 0.6557 | 0.2207 | 0.0218 |
 | **Market-implied (de-vigged closing moneyline)** | **0.6655** | **0.6094** | **0.2110** | 0.0165 |
-| Ensemble (model + market, log-odds blend) | 0.6653 | 0.6100 | 0.2111 | **0.0142** |
+| Ensemble (model + market, log-odds blend) | 0.6665 | 0.6099 | 0.2111 | **0.0129** |
 | Baseline: home-team-always | 0.5543 | 0.6877 | 0.2473 | 0.0168 |
 | Baseline: favorite-always (market) | 0.6657 | -- | -- | -- |
 
-**Reading this honestly:** the market beats every model here on raw accuracy
-and log loss. The ensemble roughly matches the market (it puts most of its
-weight there) and achieves the best calibration (lowest ECE), but **does not
-demonstrate a straight-up edge over the closing line**. That is the expected,
-credible outcome for a two-feature model (Elo + rest) against a market that
-incorporates injury reports, weather, betting flow, and dozens of features
-this system does not yet have. See "What's not built yet" below.
+**Reading this honestly:** adding EPA left the standalone model basically
+unchanged (0.6430 -> 0.6418, essentially noise) -- Elo already captures most
+of the same team-strength signal EPA would add, so the marginal value here is
+small. The ensemble's accuracy (0.6665) nominally edges the market's (0.6655),
+but on n=4,162 the standard error on accuracy is ~0.73pp, so a 0.10pp gap is
+**not a statistically meaningful result** -- read it as "matches the market,"
+not "beats it." The market still wins on log loss and Brier.
 
 ### Spread / ATS (n = 4,069 games)
 
 | Model | Accuracy | ECE |
 |---|---|---|
-| Model only (Ridge on Elo diff + rest diff) | 0.4999 | 0.0732 |
-| Ensemble (model + de-vigged spread juice) | 0.5031 | **0.0128** |
+| Model only (Ridge: Elo diff + rest diff + EPA net diff) | 0.5028 | 0.0682 |
+| Ensemble (model + de-vigged spread juice) | 0.5045 | **0.0113** |
 
-Margin MAE: model 10.43 pts vs. market (closing spread line as a point
+Margin MAE: model 10.42 pts vs. market (closing spread line as a point
 estimate) **10.08 pts**. Baselines: home-always-covers 0.4905,
 favorite-always-covers 0.4886 -- both appropriately close to 50%, confirming
 the closing line is efficient and the push-adjusted accuracy math is correct
 (see the sign-convention regression test below for why this number is *not*
 trivially checkable by eye).
 
-**Reading this honestly:** ~50% ATS either way is a coin flip. The model's
-projected margin is slightly *worse* (higher MAE) than just using the
-closing spread line as a point estimate. The ensemble materially improves
-calibration (ECE 0.073 -> 0.013) but **does not demonstrate an ATS edge.**
+**Reading this honestly:** EPA gave a small, real lift over the previous
+Elo+rest-only model (accuracy 0.4999 -> 0.5028, MAE 10.43 -> 10.42 pts), but
+~50% ATS either way is still a coin flip and the model's margin estimate is
+still slightly worse than just reading the closing line. The ensemble
+materially improves calibration (ECE 0.068 -> 0.011) but **does not
+demonstrate an ATS edge.**
 
 ### Total / O-U (n = 4,134 games)
 
 | Model | Accuracy | ECE |
 |---|---|---|
-| Model only (Ridge on trailing scoring averages) | 0.5058 | 0.0609 |
-| Ensemble (model + de-vigged total juice) | 0.5007 | 0.0218 |
+| Model only (trailing scoring averages + EPA matchup + dome) | 0.5090 | 0.0586 |
+| Ensemble (model + de-vigged total juice) | 0.5087 | **0.0210** |
 
-Total MAE: model 10.73 pts vs. market (closing total line) **10.45 pts**.
+Total MAE: model 10.71 pts vs. market (closing total line) **10.45 pts**.
 Baselines: always-over 0.4956, always-under 0.5044.
 
-**Reading this honestly:** near breakeven either way, as expected. **No
-totals edge is demonstrated.**
+**Reading this honestly:** EPA matchup features (home offense EPA vs. away
+defense EPA allowed, and vice versa) plus a dome/closed-roof indicator gave a
+small real lift (accuracy 0.5058 -> 0.5090, MAE 10.73 -> 10.71 pts,
+calibration also improved slightly), but it's still near breakeven either
+way. **No totals edge is demonstrated.**
+
+Wind is deliberately *not* a model feature, despite being flagged in this
+project's own brief as the one weather variable that genuinely moves totals.
+nflverse's `wind`/`temp` columns are the **observed** conditions recorded
+during/after the game -- not a pre-game forecast -- and are 100% missing for
+every unplayed game (checked directly: 0 of 270 upcoming games have a wind
+value). Training on it and then having it be unavailable at real prediction
+time would be a train/production mismatch dressed up as a feature, not a
+real improvement. `roof` (dome/closed vs. outdoors/open) *is* known before
+kickoff for every game and is used instead. A genuine wind feature needs a
+weather-forecast API integration -- listed below, not faked here.
 
 Both ensembles use the same log-odds blending machinery as the moneyline
 ensemble (`ensemble/blend.py`, weights learned walk-forward, never touching
@@ -140,7 +156,7 @@ number is flagged as "the model disagrees with the market," not "bet this."
 
 ## Anti-leakage guarantees
 
-`tests/leakage/` is the project's core safety net (18 tests, all passing).
+`tests/leakage/` is the project's core safety net (22 tests, all passing).
 What they actually verify:
 
 - **Elo**: a game's pre-game rating and predicted probability are byte-identical
@@ -155,6 +171,9 @@ What they actually verify:
 - **Rolling scoring features** (used by the total model): a team's trailing
   offense/defense averages depend only on that team's games strictly before
   the current one.
+- **Trailing EPA features**: same guarantee, verified against real
+  play-by-play -- truncating or corrupting a future game's plays does not
+  change an earlier game's trailing EPA.
 - **Spread sign convention regression test** (`test_spread_sign_convention.py`):
   this one is here because we got bitten by it. nflverse's `spread_line` is
   signed **positive = home favored** (opposite of the "negative = favorite"
@@ -168,19 +187,39 @@ What they actually verify:
 This last point is the honesty standard working as intended: **a
 too-good-to-be-true backtest number is a bug report, not a result.**
 
+- **Heteroskedastic (conditional) variance -- attempted, reverted, kept as
+  documentation.** Tried replacing the flat per-season sigma in the
+  spread/total distributions with a per-game sigma fit from a second
+  regression on log(residual^2). It improved MAE marginally but **worsened
+  calibration**: ATS ECE 0.068 -> 0.129, O/U ECE 0.059 -> 0.114, confirmed
+  by an isolated ablation that reproduced the accuracy gain with flat sigma
+  alone and unchanged ECE -- proof the degradation came specifically from
+  the variance model, not the new EPA features shipped alongside it. Per
+  this project's own rule (select on calibration, not accuracy), it was
+  reverted. The code and the full reasoning live in `models/variance.py`,
+  never called from the live pipeline -- this is the honesty standard
+  applied to a change *within* this same session, not just to nflverse's
+  data quirks.
+
 ## What's built vs. what's not (read before trusting this for anything)
 
 **Built and real:**
 - Leak-free, walk-forward Elo engine (MOV multiplier, season regression,
   walk-forward HFA fitting, playoff K-multiplier)
+- **Trailing EPA features** (`features/epa_features.py`), leak-free, from
+  real play-by-play (nflverse, 1999-present, ~1.28M plays): offensive EPA/play,
+  defensive EPA/play allowed, success rate, split pass/rush -- rolled forward
+  per team using only that team's strictly-prior games, same discipline as
+  every other feature in this repo. Feeds moneyline, spread, and total.
 - Moneyline: Elo baseline, isotonic-calibrated Elo, logistic regression
-  (Elo diff + rest diff), market-implied (de-vigged) baseline, log-odds
-  ensemble with walk-forward-fit blend weights
-- Spread: Normal(mean, sigma) margin model (Ridge on Elo diff + rest diff),
-  cover probability via CDF against the actual closing line, ensembled with
-  de-vigged spread-juice-implied cover probability
-- Total: Normal(mean, sigma) points model (Ridge on leak-free trailing
-  team offense/defense averages), over probability via CDF, ensembled with
+  (Elo diff + rest diff + EPA net diff), market-implied (de-vigged) baseline,
+  log-odds ensemble with walk-forward-fit blend weights
+- Spread: Normal(mean, sigma) margin model (Ridge on Elo diff + rest diff +
+  EPA net diff), cover probability via CDF against the actual closing line,
+  ensembled with de-vigged spread-juice-implied cover probability
+- Total: Normal(mean, sigma) points model (Ridge on trailing team
+  offense/defense scoring averages + EPA offense-vs-defense matchup features
+  + dome/closed-roof indicator), over probability via CDF, ensembled with
   de-vigged total-juice-implied over probability
 - Dashboard: per-game pick cards (moneyline/spread/total side, probability,
   confidence, edge vs. market) on the published site, generated entirely
@@ -192,17 +231,22 @@ too-good-to-be-true backtest number is a bug report, not a result.**
 - Static site generator (no live compute on Pages)
 
 **Not built yet (explicitly out of scope for this pass, not fabricated):**
-- **EPA/play-level efficiency features.** The prompt correctly identifies EPA
-  as the single most predictive public NFL metric. Integrating it properly
-  (leak-free, as-of-before-kickoff, aggregated from play-by-play) is a
-  substantial additional feature-engineering task that has not been done yet.
-  The current models use Elo + rest days + trailing scoring only.
 - **QB availability/quality adjustment.** Real 538-style Elo includes a QB
   value adjustment; this build uses team-level Elo only. A backup QB start is
-  currently invisible to the model.
-- **Injuries, weather, travel/timezone, red-zone/third-down rates.**
+  currently invisible to the model -- arguably the single biggest remaining
+  gap, since the prompt correctly notes a backup QB can move a line 5-7 pts.
+- **Live weather forecast.** `roof` (dome/closed vs. outdoors) is used and is
+  always known pre-game; `wind`/`temp` are nflverse's *observed*, post-game
+  values and are never available at real prediction time (0 of 270 upcoming
+  games have them) -- see the Total section above. A weather-forecast API
+  integration would be needed to add a genuine live wind feature.
+- **Injuries, travel/timezone, red-zone/third-down rates, defensive personnel
+  packages.**
 - **Gradient-boosted trees (XGBoost/LightGBM).** Installed and available
-  (see `pyproject.toml`), not yet wired into a walk-forward pipeline.
+  (see `pyproject.toml`), not yet wired into a walk-forward pipeline. Given
+  how modest the linear models' gains from EPA were, a properly-tuned,
+  walk-forward-validated GBM is the more likely next lever, not just more
+  features.
 - **True historical CLV.** nflverse provides *closing* lines only, not
   opening lines, so genuine closing-line-value (did we get a better price
   than where the market ultimately closed) cannot be reconstructed
@@ -212,17 +256,47 @@ too-good-to-be-true backtest number is a bug report, not a result.**
   accumulate in `results_log.csv` as the season progresses.
 - **Live odds API integration** for mid-week line movement (currently pulls
   whatever line nflverse has cached at generation time).
+- **Player props.** See the dedicated section below -- this is a hard data
+  availability wall, not a scoping choice.
 
 Any of the above would very plausibly move the model closer to (or past) the
 market -- but until they're built and backtested with the same leak-free
 discipline as everything above, claiming that improvement would violate the
 honesty standard this README opened with.
 
+## Player props: a real data wall, not a fabrication
+
+Checked directly against every function `nfl_data_py` exposes: nflverse
+carries real **player performance stats** (`import_weekly_data` -- passing/
+rushing/receiving yards, TDs, receptions, target share, etc., 1999-present,
+leak-free walk-forward projectable exactly like the team models above) but
+**no player prop betting lines anywhere** (no O/U yardage/reception lines a
+sportsbook actually posted). `import_sc_lines` looked promising by name but
+returns team-level, not player-level, data, and is empty for recent seasons
+in practice. Building "take the over" recommendations requires a real line to
+recommend over or under -- fabricating one would be exactly the kind of
+invented data this project's honesty standard forbids.
+
+This is unbuilt pending your call on one of:
+1. **A live odds API key with a player-props endpoint** (e.g. The Odds API's
+   props tier) -- I'd integrate it the same way game-level odds are handled:
+   real data only, `is_real_data`/`data_quality_flags` on every row.
+2. **Projections only, no line** -- build the leak-free player projection
+   model (expected yards/receptions/TDs + distribution) and publish it
+   without an over/under call, clearly labeled as a projection, not a pick.
+3. **A manual weekly line template** -- you paste in the prop lines you see
+   from your own book each week (a small CSV/YAML you maintain), labeled as
+   user-supplied rather than fetched, and the system computes model-vs-your-line
+   edge from that, the same "labeled manual template" fallback the original
+   spec described for game-level odds.
+
 ## Data sources
 
 - **nflverse / nfl_data_py** (`nfl_data_py==0.3.3`, pinned): schedules, final
-  scores, and closing betting lines (spread/total/moneyline) for
-  1999-present. This is the only data source currently wired in.
+  scores, closing betting lines (spread/total/moneyline, plus spread/total
+  juice), and play-by-play (reduced to the ~17 columns EPA aggregation
+  needs, ~1.28M plays, 1999-present) for 1999-present. This is the only
+  data source currently wired in.
 - Every raw pull is cached with a provenance sidecar (`data/raw/*.meta.json`:
   source, fetched_at, seasons, row count, `is_real_data: true`).
 - No synthetic, imputed, or "filled-in" odds/injuries/results anywhere in the
@@ -236,7 +310,7 @@ honesty standard this README opened with.
 src/nfl/
   data/           ingestion from nflverse, with provenance sidecars
   elo/            leak-free chronological Elo engine
-  features/       leak-free feature builders (e.g. rolling_scoring.py)
+  features/       leak-free feature builders (rolling_scoring.py, epa_features.py)
   models/
     moneyline/    baselines, logistic regression, isotonic-calibrated Elo
     spread/       margin (Normal dist) model

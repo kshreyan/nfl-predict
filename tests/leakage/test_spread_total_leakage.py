@@ -5,9 +5,25 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from src.nfl.features.epa_features import add_trailing_epa_features
 from src.nfl.features.rolling_scoring import add_trailing_scoring_features
 from src.nfl.models.spread.margin_model import walk_forward_margin
 from src.nfl.models.total.total_model import walk_forward_total
+
+
+def _fake_pbp_for_games(games: pd.DataFrame, seed: int = 0) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    rows = []
+    for row in games.itertuples(index=False):
+        for team, opp in ((row.home_team, row.away_team), (row.away_team, row.home_team)):
+            for _ in range(20):
+                is_pass = rng.random() < 0.6
+                rows.append({
+                    "game_id": row.game_id, "posteam": team, "defteam": opp,
+                    "epa": rng.normal(0, 1), "success": float(rng.random() < 0.45),
+                    "pass": float(is_pass), "rush": float(not is_pass), "play": 1.0,
+                })
+    return pd.DataFrame(rows)
 
 
 def _fake_elo_games(n_seasons: int = 4, games_per_season: int = 60, seed: int = 0) -> pd.DataFrame:
@@ -34,9 +50,12 @@ def _fake_elo_games(n_seasons: int = 4, games_per_season: int = 60, seed: int = 
                 "home_score": home_score, "away_score": away_score,
                 "pre_home_elo": home_elo, "pre_away_elo": away_elo,
                 "home_rest": 7, "away_rest": 7,
+                "roof": "outdoors" if gid % 5 else "dome",
                 "spread_line": rng.normal(0, 5), "total_line": 44.0,
             })
-    return pd.DataFrame(rows)
+    games = pd.DataFrame(rows)
+    pbp = _fake_pbp_for_games(games, seed=seed)
+    return add_trailing_epa_features(games, pbp, window=5)
 
 
 class TestRollingScoringLeakage:

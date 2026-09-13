@@ -21,9 +21,10 @@ def fit_and_predict_total(games: pd.DataFrame, window: int = 16) -> pd.DataFrame
         df["total_sigma_pred"] = sigma_pred
         return df
 
+    X_train = train[FEATURE_COLS].values
     model = Ridge(alpha=10.0)
-    model.fit(train[FEATURE_COLS].values, train["total_points"].values)
-    resid = train["total_points"].values - model.predict(train[FEATURE_COLS].values)
+    model.fit(X_train, train["total_points"].values)
+    resid = train["total_points"].values - model.predict(X_train)
     sigma = float(np.std(resid, ddof=1))
 
     preds = model.predict(target[FEATURE_COLS].values)

@@ -25,15 +25,25 @@ import pandas as pd
 from scipy.stats import norm
 from sklearn.linear_model import Ridge
 
-FEATURE_COLS = ["elo_diff", "rest_diff"]
+FEATURE_COLS = ["elo_diff", "rest_diff", "epa_net_diff"]
 
 
 def build_margin_features(elo_games: pd.DataFrame) -> pd.DataFrame:
+    """`elo_games` is expected to already carry trailing EPA columns from
+    features/epa_features.add_trailing_epa_features (home_off_epa_trailing,
+    home_def_epa_allowed_trailing, away_*) -- that step runs once upstream
+    in the backtest/production orchestration scripts, not here, since it
+    needs the separate play-by-play frame this function doesn't take."""
     df = elo_games.copy()
     df["elo_diff"] = df["pre_home_elo"] - df["pre_away_elo"]
     df["home_rest"] = df.get("home_rest", np.nan)
     df["away_rest"] = df.get("away_rest", np.nan)
     df["rest_diff"] = (df["home_rest"].fillna(7) - df["away_rest"].fillna(7)).clip(-10, 10)
+
+    home_net_epa = df["home_off_epa_trailing"] - df["home_def_epa_allowed_trailing"]
+    away_net_epa = df["away_off_epa_trailing"] - df["away_def_epa_allowed_trailing"]
+    df["epa_net_diff"] = home_net_epa - away_net_epa
+
     df["margin"] = df["home_score"] - df["away_score"]
     return df
 
@@ -63,12 +73,13 @@ def walk_forward_margin(
         model.fit(X_train, y_train)
 
         resid = y_train - model.predict(X_train)
-        sigma = float(np.std(resid, ddof=1))
+        sigma = float(np.std(resid, ddof=1))  # flat per-season sigma -- see models/variance.py
 
         test = df.loc[test_idx].dropna(subset=FEATURE_COLS)
         if len(test) == 0:
             continue
         preds = model.predict(test[FEATURE_COLS].values)
+
         mean_pred.loc[test.index] = preds
         sigma_pred.loc[test.index] = sigma
 
