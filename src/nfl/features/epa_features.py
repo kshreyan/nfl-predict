@@ -14,6 +14,26 @@ Source: nflverse play-by-play via nfl_data_py.import_pbp_data. `play == 1`
 is nflverse's own flag for "this row counts as a real play" (excludes
 timeouts, penalties-only, spikes counted separately, etc.) -- filtering on
 it (not just play_type) is what nflverse's own EPA leaderboards do.
+
+Garbage-time filtering: available (`filter_garbage_time=True`), OFF by
+default -- ATTEMPTED AND REVERTED, kept as documentation, same as the
+heteroskedastic variance model in models/variance.py.
+
+The idea (a standard public-analytics convention, e.g. rbsdm.com): exclude
+plays where the pre-play win probability (`wp`, nflfastR's own model,
+populated for ~99.4% of plays across 1999-2026 -- checked directly) is
+outside [0.1, 0.9], since a team padding a 35-point lead plays differently
+than it does in a competitive game.
+
+Backtested result: it made things WORSE almost across the board -- total
+model accuracy gain from EPA was entirely wiped out (0.509 -> 0.506, back to
+the no-EPA baseline), spread ECE got worse (0.068 -> 0.070), moneyline
+ensemble accuracy dropped (0.6665 -> 0.6648). Plausible reason: this system
+already smooths EPA over a 10-game trailing window; cutting ~23% of plays
+per game shrinks the effective sample feeding that window, and the added
+estimation noise outweighs the bias reduction from excluding blowout snaps.
+Reverted to off by default. Plays with missing `wp` are always kept when the
+filter is on (never dropped for a reason we can't verify).
 """
 from __future__ import annotations
 
@@ -25,13 +45,19 @@ import pandas as pd
 LEAGUE_AVG_EPA = 0.0  # neutral prior for a team's first `window` games ever
 LEAGUE_AVG_SUCCESS = 0.45
 
+GARBAGE_TIME_WP_LOW = 0.1
+GARBAGE_TIME_WP_HIGH = 0.9
 
-def aggregate_epa_to_game_team(pbp: pd.DataFrame) -> pd.DataFrame:
+
+def aggregate_epa_to_game_team(pbp: pd.DataFrame, filter_garbage_time: bool = False) -> pd.DataFrame:
     """One row per (game_id, team): offensive EPA/play, defensive EPA/play
     allowed, success rate (offense), split pass/rush EPA. Purely within-game
     aggregation -- no chronological ordering assumptions, so no leakage risk
     at this stage."""
     plays = pbp[(pbp["play"] == 1) & pbp["epa"].notna()].copy()
+    if filter_garbage_time and "wp" in plays.columns:
+        is_garbage = (plays["wp"] < GARBAGE_TIME_WP_LOW) | (plays["wp"] > GARBAGE_TIME_WP_HIGH)
+        plays = plays[~is_garbage.fillna(False)]  # unknown wp -> keep the play
 
     off = plays.groupby(["game_id", "posteam"]).agg(
         off_epa=("epa", "mean"),
@@ -64,13 +90,15 @@ def _sort_games(games: pd.DataFrame) -> pd.DataFrame:
     return g.sort_values(["season", "week", "gameday", "game_id"]).reset_index(drop=True)
 
 
-def add_trailing_epa_features(games: pd.DataFrame, pbp: pd.DataFrame, window: int = 10) -> pd.DataFrame:
+def add_trailing_epa_features(
+    games: pd.DataFrame, pbp: pd.DataFrame, window: int = 10, filter_garbage_time: bool = False,
+) -> pd.DataFrame:
     """Attach trailing (leak-free) EPA features to a games/schedule frame.
 
     Adds, for both home and away: {off_epa, off_pass_epa, off_rush_epa,
     off_success, def_epa_allowed, def_success_allowed}_trailing.
     """
-    game_team = aggregate_epa_to_game_team(pbp)
+    game_team = aggregate_epa_to_game_team(pbp, filter_garbage_time=filter_garbage_time)
     by_game = {gid: grp.set_index("team") for gid, grp in game_team.groupby("game_id")}
 
     g = _sort_games(games)

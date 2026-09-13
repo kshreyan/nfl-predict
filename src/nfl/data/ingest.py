@@ -49,9 +49,16 @@ def fetch_schedules(seasons: list[int]) -> pd.DataFrame:
 
 
 EPA_PBP_COLUMNS = [
-    "game_id", "season", "week", "season_type", "posteam", "defteam",
+    # "season" is deliberately not requested here: nfl_data_py silently
+    # drops it from the output when fetching multiple years with
+    # thread_requests=True (confirmed empirically; a single-year fetch
+    # keeps it). Harmless -- nothing in epa_features.py reads pbp['season'],
+    # every join happens via game_id (which already encodes season as its
+    # prefix, e.g. "2023_01_ARI_WAS") and season comes from the schedule
+    # frame everywhere it's needed.
+    "game_id", "week", "season_type", "posteam", "defteam",
     "play_type", "epa", "success", "pass", "rush", "down", "wind", "temp",
-    "roof", "home_team", "away_team", "play",
+    "roof", "home_team", "away_team", "play", "wp",
 ]
 
 
