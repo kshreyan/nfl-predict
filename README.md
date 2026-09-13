@@ -256,39 +256,20 @@ too-good-to-be-true backtest number is a bug report, not a result.**
   accumulate in `results_log.csv` as the season progresses.
 - **Live odds API integration** for mid-week line movement (currently pulls
   whatever line nflverse has cached at generation time).
-- **Player props.** See the dedicated section below -- this is a hard data
-  availability wall, not a scoping choice.
+- **Player props: explicitly out of scope (decided, not just unbuilt).**
+  nflverse carries real player performance stats (`import_weekly_data`) but
+  no player prop betting lines anywhere -- `import_sc_lines` looked
+  promising by name but is team-level and empty for recent seasons in
+  practice. A live odds API key was tried (The Odds API) but came back
+  `DEACTIVATED_KEY` (a billing/account issue, not a code issue). Rather than
+  fabricate lines or half-build a line-less projection feature, this system
+  is scoped to game-level markets only: moneyline, spread, total. No player
+  prop code, secrets, or endpoints are in this repo.
 
 Any of the above would very plausibly move the model closer to (or past) the
 market -- but until they're built and backtested with the same leak-free
 discipline as everything above, claiming that improvement would violate the
 honesty standard this README opened with.
-
-## Player props: a real data wall, not a fabrication
-
-Checked directly against every function `nfl_data_py` exposes: nflverse
-carries real **player performance stats** (`import_weekly_data` -- passing/
-rushing/receiving yards, TDs, receptions, target share, etc., 1999-present,
-leak-free walk-forward projectable exactly like the team models above) but
-**no player prop betting lines anywhere** (no O/U yardage/reception lines a
-sportsbook actually posted). `import_sc_lines` looked promising by name but
-returns team-level, not player-level, data, and is empty for recent seasons
-in practice. Building "take the over" recommendations requires a real line to
-recommend over or under -- fabricating one would be exactly the kind of
-invented data this project's honesty standard forbids.
-
-This is unbuilt pending your call on one of:
-1. **A live odds API key with a player-props endpoint** (e.g. The Odds API's
-   props tier) -- I'd integrate it the same way game-level odds are handled:
-   real data only, `is_real_data`/`data_quality_flags` on every row.
-2. **Projections only, no line** -- build the leak-free player projection
-   model (expected yards/receptions/TDs + distribution) and publish it
-   without an over/under call, clearly labeled as a projection, not a pick.
-3. **A manual weekly line template** -- you paste in the prop lines you see
-   from your own book each week (a small CSV/YAML you maintain), labeled as
-   user-supplied rather than fetched, and the system computes model-vs-your-line
-   edge from that, the same "labeled manual template" fallback the original
-   spec described for game-level odds.
 
 ## Data sources
 
