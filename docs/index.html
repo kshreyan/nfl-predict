@@ -23,10 +23,15 @@
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 1rem; }
   .card { background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 1rem 1.1rem;
            border: 1px solid #e2e8f0; }
+  .card-final { background: #fafafa; }
   .card-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.7rem; }
   .matchup { font-weight: 700; font-size: 1.02rem; }
   .matchup .at { color: #94a3b8; font-weight: 400; }
   .gameday { color: #94a3b8; font-size: 0.78rem; }
+  .final-badge { color: #475569; font-weight: 700; font-size: 0.75rem; background: #e2e8f0;
+                   padding: 0.15rem 0.45rem; border-radius: 4px; }
+  .outcome-hit { color: #15803d; font-weight: 700; font-size: 0.75rem; }
+  .outcome-miss { color: #b91c1c; font-weight: 700; font-size: 0.75rem; }
 
   .pick-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: 6px;
                margin-bottom: 0.35rem; font-size: 0.85rem; flex-wrap: wrap; }
@@ -78,8 +83,9 @@
     calibrated view, not a demonstrated edge. Predictions are generated pre-kickoff and immutable once written.
   </div>
 
-  <h2>This week: Week 1, 2026 season</h2>
-  <p class="note">Snapshot generated at 2026-09-14T02:35:29.483768+00:00 (site rebuilt 2026-09-14 02:36 UTC).</p>
+  <h2>This week: Week 1, 2026 season · 12/14 final</h2>
+  <p class="note">Full slate predicted pre-kickoff at 2026-09-13T13:34:01.842488+00:00 (site rebuilt 2026-09-14 05:59 UTC). Games already played show
+  their final score and whether each pick hit -- predictions themselves are never changed after the fact.</p>
 
   <div class="legend">
     <b>How to read a card:</b> each row is the pick for that market -- the side/total the ensemble (model +
@@ -92,6 +98,246 @@
   </div>
 
   <div class="grid">
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">ARI <span class="at">@</span> LAC</span>
+        <span class="gameday"><span class="final-badge">FINAL 26-14</span></span>
+      </div>
+      
+    <div class="pick-row tier-high">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">LAC <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:80%"></span></span>
+        80%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.1pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">ARI +9.5 <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-neg">edge -2.5pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">UNDER (47.5) <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
+        52%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.9pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 74% / market 80% (home=LAC) · Spread: model margin +7.7 (home=LAC) vs market line +9.5 · Total: model 44.7 vs market 47.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">ATL <span class="at">@</span> PIT</span>
+        <span class="gameday"><span class="final-badge">FINAL 13-20</span></span>
+      </div>
+      
+    <div class="pick-row tier-high">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">PIT <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:70%"></span></span>
+        70%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.5pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">ATL +6.5 <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
+        52%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.9pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">OVER (40.5) <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-flat">edge +0.9pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 60% / market 71% (home=PIT) · Spread: model margin +3.6 (home=PIT) vs market line +6.5 · Total: model 44.1 vs market 40.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">BAL <span class="at">@</span> IND</span>
+        <span class="gameday"><span class="final-badge">FINAL 41-23</span></span>
+      </div>
+      
+    <div class="pick-row tier-medium">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">BAL <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:62%"></span></span>
+        62%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.4pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">BAL -3.5 <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:50%"></span></span>
+        50%
+      </span>
+      <span class="pick-edge edge-neg">edge -2.3pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">OVER (47.5) <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:50%"></span></span>
+        50%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.8pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 46% / market 39% (home=IND) · Spread: model margin -0.9 (home=IND) vs market line -3.5 · Total: model 49.0 vs market 47.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">BUF <span class="at">@</span> HOU</span>
+        <span class="gameday"><span class="final-badge">FINAL 36-31</span></span>
+      </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">BUF <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
+        52%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.1pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">BUF -1.5 <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:50%"></span></span>
+        50%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.7pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">OVER (44.5) <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-flat">edge +0.8pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 57% / market 50% (home=HOU) · Spread: model margin +2.3 (home=HOU) vs market line -1.5 · Total: model 47.1 vs market 44.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">CHI <span class="at">@</span> CAR</span>
+        <span class="gameday"><span class="final-badge">FINAL 59-37</span></span>
+      </div>
+      
+    <div class="pick-row tier-medium">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">CHI <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:62%"></span></span>
+        62%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.5pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">CHI -3.0 <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
+        52%
+      </span>
+      <span class="pick-edge edge-flat">edge +0.7pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">UNDER (47.5) <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
+        52%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.8pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 43% / market 39% (home=CAR) · Spread: model margin -1.8 (home=CAR) vs market line -3.0 · Total: model 45.1 vs market 47.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">CLE <span class="at">@</span> JAX</span>
+        <span class="gameday"><span class="final-badge">FINAL 10-34</span></span>
+      </div>
+      
+    <div class="pick-row tier-high">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">JAX <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:79%"></span></span>
+        79%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.1pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">CLE +8.5 <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.6pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">OVER (40.5) <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-pos">edge +3.0pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 75% / market 79% (home=JAX) · Spread: model margin +8.2 (home=JAX) vs market line +8.5 · Total: model 44.1 vs market 40.5</span>
+        
+      </div>
+    </div>
     <div class="card">
       <div class="card-head">
         <span class="matchup">DAL <span class="at">@</span> NYG</span>
@@ -102,33 +348,273 @@
       <span class="pick-market">ML</span>
       <span class="pick-side">DAL</span>
       <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:61%"></span></span>
+        61%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.3pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">DAL -3.0</span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:50%"></span></span>
+        50%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.2pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">OVER (48.5)</span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-pos">edge +2.4pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 52% / market 41% (home=NYG) · Spread: model margin +0.9 (home=NYG) vs market line -3.0 · Total: model 52.1 vs market 48.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">GB <span class="at">@</span> MIN</span>
+        <span class="gameday"><span class="final-badge">FINAL 22-39</span></span>
+      </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">MIN <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:53%"></span></span>
+        53%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.0pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">GB +2.5 <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.2pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">UNDER (46.5) <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:53%"></span></span>
+        53%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.5pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 59% / market 54% (home=MIN) · Spread: model margin +3.4 (home=MIN) vs market line +2.5 · Total: model 42.5 vs market 46.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">MIA <span class="at">@</span> LV</span>
+        <span class="gameday"><span class="final-badge">FINAL 13-27</span></span>
+      </div>
+      
+    <div class="pick-row tier-medium">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">LV <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
         <span class="conf-bar"><span class="conf-fill" style="width:60%"></span></span>
         60%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.1pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">MIA +3.0 <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
+        52%
+      </span>
+      <span class="pick-edge edge-neg">edge -3.2pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">UNDER (40.5) <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:50%"></span></span>
+        50%
+      </span>
+      <span class="pick-edge edge-flat">edge +1.1pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 41% / market 61% (home=LV) · Spread: model margin -2.1 (home=LV) vs market line +3.0 · Total: model 41.5 vs market 40.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">NO <span class="at">@</span> DET</span>
+        <span class="gameday"><span class="final-badge">FINAL 30-31</span></span>
+      </div>
+      
+    <div class="pick-row tier-high">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">DET <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:73%"></span></span>
+        73%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.3pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">NO +7.0 <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.2pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">UNDER (49.5) <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
+        52%
+      </span>
+      <span class="pick-edge edge-neg">edge -2.1pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 72% / market 73% (home=DET) · Spread: model margin +7.0 (home=DET) vs market line +7.0 · Total: model 47.2 vs market 49.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">NYJ <span class="at">@</span> TEN</span>
+        <span class="gameday"><span class="final-badge">FINAL 23-10</span></span>
+      </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">TEN <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.1pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">NYJ +1.5 <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.3pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">OVER (38.5) <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
+        52%
+      </span>
+      <span class="pick-edge edge-flat">edge +1.6pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 57% / market 52% (home=TEN) · Spread: model margin +2.1 (home=TEN) vs market line +1.5 · Total: model 43.5 vs market 38.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">TB <span class="at">@</span> CIN</span>
+        <span class="gameday"><span class="final-badge">FINAL 27-33</span></span>
+      </div>
+      
+    <div class="pick-row tier-medium">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">CIN <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:64%"></span></span>
+        64%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.8pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">SPREAD</span>
+      <span class="pick-side">TB +3.5 <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-neg">edge -2.8pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">UNDER (50.5) <span class="outcome-miss">✗ miss</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-flat">edge -0.7pp vs market</span>
+    </div>
+      <div class="card-foot">
+        <span class="detail">ML: model 57% / market 64% (home=CIN) · Spread: model margin +2.3 (home=CIN) vs market line +3.5 · Total: model 49.2 vs market 50.5</span>
+        
+      </div>
+    </div>
+    <div class="card card-final">
+      <div class="card-head">
+        <span class="matchup">WAS <span class="at">@</span> PHI</span>
+        <span class="gameday"><span class="final-badge">FINAL 22-24</span></span>
+      </div>
+      
+    <div class="pick-row tier-medium">
+      <span class="pick-market">ML</span>
+      <span class="pick-side">PHI <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:69%"></span></span>
+        69%
       </span>
       <span class="pick-edge edge-flat">edge -0.4pp vs market</span>
     </div>
       
     <div class="pick-row tier-low">
       <span class="pick-market">SPREAD</span>
-      <span class="pick-side">NYG +3.0</span>
+      <span class="pick-side">WAS +6.0 <span class="outcome-hit">✓ hit</span></span>
+      <span class="pick-conf">
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
+      </span>
+      <span class="pick-edge edge-flat">edge -1.2pp vs market</span>
+    </div>
+      
+    <div class="pick-row tier-low">
+      <span class="pick-market">TOTAL</span>
+      <span class="pick-side">UNDER (44.5) <span class="outcome-miss">✗ miss</span></span>
       <span class="pick-conf">
         <span class="conf-bar"><span class="conf-fill" style="width:50%"></span></span>
         50%
       </span>
       <span class="pick-edge edge-flat">edge +0.7pp vs market</span>
     </div>
-      
-    <div class="pick-row tier-low">
-      <span class="pick-market">TOTAL</span>
-      <span class="pick-side">OVER (47.5)</span>
-      <span class="pick-conf">
-        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
-        52%
-      </span>
-      <span class="pick-edge edge-flat">edge +1.3pp vs market</span>
-    </div>
       <div class="card-foot">
-        <span class="detail">ML: model 53% / market 40% (home=NYG) · Spread: model margin +1.0 (home=NYG) vs market line -3.0 · Total: model 50.8 vs market 47.5</span>
+        <span class="detail">ML: model 68% / market 69% (home=PHI) · Spread: model margin +6.1 (home=PHI) vs market line +6.0 · Total: model 44.7 vs market 44.5</span>
         
       </div>
     </div>
@@ -142,33 +628,33 @@
       <span class="pick-market">ML</span>
       <span class="pick-side">KC</span>
       <span class="pick-conf">
-        <span class="conf-bar"><span class="conf-fill" style="width:53%"></span></span>
-        53%
+        <span class="conf-bar"><span class="conf-fill" style="width:54%"></span></span>
+        54%
       </span>
-      <span class="pick-edge edge-neg">edge -2.4pp vs market</span>
+      <span class="pick-edge edge-flat">edge -1.3pp vs market</span>
     </div>
       
     <div class="pick-row tier-low">
       <span class="pick-market">SPREAD</span>
       <span class="pick-side">DEN +2.5</span>
       <span class="pick-conf">
-        <span class="conf-bar"><span class="conf-fill" style="width:53%"></span></span>
-        53%
+        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
+        52%
       </span>
-      <span class="pick-edge edge-neg">edge -2.9pp vs market</span>
+      <span class="pick-edge edge-neg">edge -2.4pp vs market</span>
     </div>
       
     <div class="pick-row tier-low">
       <span class="pick-market">TOTAL</span>
       <span class="pick-side">UNDER (43.5)</span>
       <span class="pick-conf">
-        <span class="conf-bar"><span class="conf-fill" style="width:52%"></span></span>
-        52%
+        <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
+        51%
       </span>
-      <span class="pick-edge edge-flat">edge -1.3pp vs market</span>
+      <span class="pick-edge edge-flat">edge -0.9pp vs market</span>
     </div>
       <div class="card-foot">
-        <span class="detail">ML: model 44% / market 55% (home=KC) · Spread: model margin -1.3 (home=KC) vs market line +2.5 · Total: model 42.4 vs market 43.5</span>
+        <span class="detail">ML: model 41% / market 55% (home=KC) · Spread: model margin -2.5 (home=KC) vs market line +2.5 · Total: model 41.9 vs market 43.5</span>
         
       </div>
     </div></div>
@@ -176,8 +662,8 @@
   <h2>This week's suggested parlay</h2>
   
     <div class="parlay-warning">
-      Combining picks multiplies risk, not just reward: 2 legs at these probabilities give only a
-      <strong>31.9% chance every leg hits</strong> -- each leg's own
+      Combining picks multiplies risk, not just reward: 4 legs at these probabilities give only a
+      <strong>32.5% chance every leg hits</strong> -- each leg's own
       probability may look reasonable, the <em>combined</em> number is what actually matters for a parlay slip, and
       it drops fast as legs are added. This is the model's most-confident combination this week, not a
       recommendation to place it.
@@ -185,25 +671,35 @@
     <table class="metrics">
       <thead><tr><th>#</th><th>Game</th><th>Market</th><th>Pick</th><th>Model prob.</th><th>Market prob.</th><th>Edge</th></tr></thead>
       <tbody><tr>
-          <td>1</td><td>DAL @ NYG</td><td>ML</td>
-          <td>DAL</td><td>60.3%</td>
-          <td>60.0%</td>
-          <td>+0.4pp</td>
+          <td>1</td><td>ARI @ LAC</td><td>ML</td>
+          <td>LAC</td><td>80.3%</td>
+          <td>80.4%</td>
+          <td>-0.1pp</td>
         </tr><tr>
-          <td>2</td><td>DEN @ KC</td><td>SPREAD</td>
-          <td>DEN +2.5</td><td>52.9%</td>
-          <td>50.0%</td>
-          <td>+2.9pp</td>
+          <td>2</td><td>CLE @ JAX</td><td>ML</td>
+          <td>JAX</td><td>78.6%</td>
+          <td>78.7%</td>
+          <td>-0.1pp</td>
+        </tr><tr>
+          <td>3</td><td>NO @ DET</td><td>ML</td>
+          <td>DET</td><td>73.1%</td>
+          <td>73.4%</td>
+          <td>-0.3pp</td>
+        </tr><tr>
+          <td>4</td><td>ATL @ PIT</td><td>ML</td>
+          <td>PIT</td><td>70.4%</td>
+          <td>71.0%</td>
+          <td>-0.5pp</td>
         </tr></tbody>
     </table>
     <table class="metrics" style="margin-top:0.6rem">
-      <thead><tr><th>Combined (2 legs)</th><th>Probability</th><th>Fair odds (implied, not a real book price)</th></tr></thead>
+      <thead><tr><th>Combined (4 legs)</th><th>Probability</th><th>Fair odds (implied, not a real book price)</th></tr></thead>
       <tbody>
-        <tr><td>Model</td><td>31.9%</td>
-            <td>+213</td></tr>
+        <tr><td>Model</td><td>32.5%</td>
+            <td>+208</td></tr>
         <tr><td>Market-implied</td>
-            <td>30.0%</td>
-            <td>+234</td></tr>
+            <td>32.9%</td>
+            <td>+204</td></tr>
       </tbody>
     </table>
     <p class="note">One leg per game only (highest-probability market for that game), drawn only across

@@ -182,6 +182,23 @@ read a pick as "the model's calibrated view," not "a demonstrated edge":
 the legend on the page says this explicitly, and a large edge-vs-market
 number is flagged as "the model disagrees with the market," not "bet this."
 
+### Every match's prediction stays on the site, including finished ones
+
+`predict.py` filters each run to games not yet played (it can only predict
+the future), so re-running it mid-week -- the normal workflow once results
+start coming in -- produces a shrinking sequence of snapshots for the same
+week. Showing only the latest one on the site would make already-played
+games, and their predictions, silently disappear from view as the week goes
+on. Instead the site shows the **earliest complete snapshot** for the
+current week (the full original slate, generated consistently before any
+of that week's games kicked off, and the fairer set to judge against final
+results) and cross-references real final scores (from the same cached
+schedule data, never fabricated) to show a `FINAL score` badge and a
+`✓ hit` / `✗ miss` mark on each market's pick once a game is decided.
+Nothing about the original prediction changes -- the hit/miss mark is
+computed at site-render time from the immutable pick plus the now-known
+result, exactly like `record_results.py` does for the evaluation ledger.
+
 ### Suggested parlay (`reporting/parlay.py`)
 
 A separate table combining the model's highest-confidence pick from each of
@@ -203,9 +220,14 @@ conservative:
 - **Combined probability shown for both model and market**, with fair (no-vig)
   implied American odds for legibility -- explicitly labeled as not a real
   offered sportsbook price, since no live parlay pricing is fetched.
-- Computed once as part of the immutable prediction snapshot (`predict.py`),
-  not re-derived at site-build time, so it's part of the same auditable
-  historical record as everything else.
+- `predict.py` stores its own point-in-time parlay in each snapshot (part
+  of the immutable record); the site recomputes it from whichever snapshot
+  it's displaying (see below -- the site shows the week's full original
+  slate, which is not always the single latest snapshot), so the parlay
+  table always matches the exact games shown above it. Recomputing is safe
+  here because `build_parlay` is pure combination logic over already-
+  immutable pick data -- the same deterministic function evaluated at a
+  different time, not new modeling.
 
 ## Anti-leakage guarantees
 
