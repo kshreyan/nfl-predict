@@ -229,9 +229,102 @@ conservative:
   immutable pick data -- the same deterministic function evaluated at a
   different time, not new modeling.
 
+### Live game odds (`data/odds_api.py`, `data/live_odds_aggregation.py`)
+
+Optional, real, and additive: with an `ODDS_API_KEY` set (The Odds API --
+see `.env.example`), `predict.py` fetches the current week's live
+moneyline/spread/total lines from 5-11 real sportsbooks (DraftKings,
+FanDuel, Caesars, Fanatics, etc.) and uses them in place of nflverse's
+schedule-embedded lines for that week's still-unplayed games -- fresher,
+and a genuine multi-book consensus rather than one source's number. Without
+a key, or if the API call fails for any reason, the pipeline falls back to
+nflverse's lines untouched; nothing about the model or the backtest depends
+on this key, and no historical backtest ever uses it (the API only serves
+current odds, not historical, so leak-free-ness is trivially preserved --
+there is nothing here for a walk-forward backtest to even touch).
+
+Methodology: de-vig each book's own prices independently, then average
+those probabilities across every book offering that market; the displayed
+line itself is the median across books. Each game gets a `live_odds_used`
+flag so it's visible which lines came from where.
+
+**Sign convention warning, again:** The Odds API reports each team's spread
+`point` in the *standard* sportsbook display convention (favorite negative),
+the *opposite* of nflverse's `spread_line` (positive = home favored). This
+is the exact class of bug this project has now gotten wrong twice with
+nflverse's own convention -- caught before shipping this time by writing
+the regression test first, pinned against a real fetched example (Chiefs
+home, favored by 2.5, point -2.5 -> converted spread_line = +2.5) in
+`tests/unit/test_live_odds_aggregation.py`.
+
+### Player props (`reporting/props_predict.py`, `models/props/`)
+
+Real projections against real current-week lines, for `player_pass_yds`,
+`player_pass_tds`, `player_rush_yds`, `player_reception_yds`, and
+`player_receptions`. Requires `ODDS_API_KEY`; skipped entirely (not faked)
+without one.
+
+**Data.** nflverse carries real player performance stats but no historical
+prop lines anywhere (see the retired "Player props: a real data wall"
+discussion in earlier project history) -- that hasn't changed. What changed
+is a live odds API key now provides real *current*-week lines, so a
+model-vs-market comparison is possible prospectively, just not
+retrospectively.
+
+**Projection.** Deliberately the simplest defensible model: a player's own
+trailing average (last 8 games, leak-free, same chronological-deque pattern
+as every other trailing feature in this repo) over their *own* history --
+sourced from play-by-play (`qb_epa`-style: `passer_id`/`rusher_id`/
+`receiver_id` + `yards_gained` + touchdown flags), not nflverse's separate
+"weekly" release, because that release lags the current season the same way
+QB EPA's source does. No opponent-defense adjustment -- see "what's not
+built yet" above for why that matters.
+
+**Backtest (honest about its limits).** No real historical lines exist, so
+this cannot report "beat the line" accuracy the way spread/total do.
+What's reported instead (`make` target below, `data/processed/
+player_props_backtest_summary.json`): MAE of the trailing average vs
+actual, against a naive season-to-date-league-average baseline, and a PIT
+(probability-integral-transform) calibration check on the assumed
+Normal(trailing avg, sigma) distribution. 2015-2025 REG season:
+
+| Market | MAE (trailing avg) | MAE (league-avg baseline) | Calibration |
+|---|---|---|---|
+| Passing yards | 71.2 | 79.0 | good (deciles ~0.09-0.11) |
+| Passing TDs | 0.92 | 0.96 | good (deciles ~0.07-0.13) |
+| Rushing yards | 26.2 | 30.6 | fair -- right-skewed, Normal over-predicts near the median |
+| Receiving yards | 21.8 | 25.9 | fair -- same skew |
+| Receptions | 1.59 | 1.86 | fair -- same skew |
+
+Beats the naive baseline everywhere (real signal), calibration is good for
+the more symmetric passing stats and only fair for the right-skewed
+volume stats (a Normal distribution isn't a perfect fit for a stat with a
+floor at 0 and an occasional big game -- honestly reported, not hidden).
+
+**Name matching.** The Odds API returns free-text names ("Patrick
+Mahomes"); nflverse's `import_players()` provides the real gsis_id
+crosswalk. Matched by normalized name (strip punctuation/suffixes,
+lowercase) with **no fuzzy matching** -- an unrecognized or ambiguous
+(two players, same normalized name) match is dropped and logged, never
+guessed. Tested against a real live fetch: 17/17 names matched on the
+first real run.
+
+**Real observed result worth reading closely.** The first live run (Week 1,
+2026, DEN @ KC) produced mostly large, one-sided edges (+18pp to +40pp,
+nearly all favoring OVER). Checked by hand against real play-by-play (not
+assumed a bug): Bo Nix's 272.9-yard projection is the exact average of his
+real last 8 games (291, 331, 218, 306, 348, 217, 175, 297) -- correct
+arithmetic on real data, not a bug. The likely explanation is exactly the
+disclosed limitation above: no opponent-defense adjustment, and the
+trailing window includes playoff games (which can run hot for a team that
+made a deep run) without distinction. This is presented as a live example
+of why the dashboard's disclaimer says a large prop edge means "investigate
+the matchup yourself," not "the model found value" -- and why this
+limitation is listed above rather than left implicit.
+
 ## Anti-leakage guarantees
 
-`tests/leakage/` is the project's core safety net (27 tests, all passing).
+`tests/leakage/` is the project's core safety net (30 tests, all passing).
 What they actually verify:
 
 - **Elo**: a game's pre-game rating and predicted probability are byte-identical
@@ -252,6 +345,11 @@ What they actually verify:
 - **Trailing QB rating**: same guarantee, plus a dedicated test that a
   backup QB's first start gets a neutral prior, never the departed
   starter's (team-level) rating.
+- **Trailing player stats** (props): same guarantee, verified the same way
+  (truncation and future-game-corruption invariance).
+- **The Odds API sign convention regression test**
+  (`test_live_odds_aggregation.py`): pinned against a real fetched example
+  -- see "Live game odds" above for the story.
 - **Spread sign convention regression test** (`test_spread_sign_convention.py`):
   this one is here because we got bitten by it. nflverse's `spread_line` is
   signed **positive = home favored** (opposite of the "negative = favorite"
@@ -344,6 +442,21 @@ too-good-to-be-true backtest number is a bug report, not a result.**
   three markets, with baseline comparisons
 - Immutable weekly prediction snapshots + separate results ledger
 - Static site generator (no live compute on Pages)
+- **Live game odds** (`data/odds_api.py`, `data/live_odds_aggregation.py`):
+  real multi-book current-week lines from The Odds API, optional and
+  additive, never touching historical backtesting
+- **Player props** (`reporting/props_predict.py`, `models/props/`,
+  `features/player_stats.py`): real trailing-average projections against
+  real current-week prop lines, real player-name matching via nflverse's
+  own id crosswalk, honestly backtested on MAE + PIT calibration (no real
+  historical lines exist to backtest "beat the line" against -- disclosed,
+  not hidden)
+- **Suggested parlay** (`reporting/parlay.py`): best cross-game combination
+  of the week's picks, leading with the compounding-risk math, not the
+  payout
+- Full-slate + result tracking on the dashboard: every match's prediction
+  stays visible (not just the shrinking "still upcoming" list), annotated
+  with real final scores and hit/miss once decided
 
 **Not built yet (explicitly out of scope for this pass, not fabricated):**
 - **Full 538-style QB-adjusted Elo.** What's built (see above) is a
@@ -371,18 +484,16 @@ too-good-to-be-true backtest number is a bug report, not a result.**
   retroactively. What's reported instead is model-vs-closing-line calibration
   and accuracy. Starting from the first prediction snapshot in this repo,
   every snapshot is timestamped pre-kickoff; a real prospective CLV log will
-  accumulate in `results_log.csv` as the season progresses.
-- **Live odds API integration** for mid-week line movement (currently pulls
-  whatever line nflverse has cached at generation time).
-- **Player props: explicitly out of scope (decided, not just unbuilt).**
-  nflverse carries real player performance stats (`import_weekly_data`) but
-  no player prop betting lines anywhere -- `import_sc_lines` looked
-  promising by name but is team-level and empty for recent seasons in
-  practice. A live odds API key was tried (The Odds API) but came back
-  `DEACTIVATED_KEY` (a billing/account issue, not a code issue). Rather than
-  fabricate lines or half-build a line-less projection feature, this system
-  is scoped to game-level markets only: moneyline, spread, total. No player
-  prop code, secrets, or endpoints are in this repo.
+  accumulate in `results_log.csv` as the season progresses. (Live game odds
+  ARE now fetched -- see below -- but The Odds API's plan used here doesn't
+  provide historical odds either, so this doesn't change the CLV story.)
+- **Opponent-defense-adjusted player projections.** The player-props
+  projection (below) is a player's own trailing average only -- it doesn't
+  adjust for the specific opponent's defensive strength the way the
+  game-level models adjust for opponent EPA. This is the most likely
+  explanation for the large, mostly one-sided edges observed in the first
+  real week this was run (see the player props section below) -- a
+  documented, honest limitation, not swept under the rug.
 
 Any of the above would very plausibly move the model closer to (or past) the
 market -- but until they're built and backtested with the same leak-free
@@ -393,35 +504,50 @@ honesty standard this README opened with.
 
 - **nflverse / nfl_data_py** (`nfl_data_py==0.3.3`, pinned): schedules, final
   scores, closing betting lines (spread/total/moneyline, plus spread/total
-  juice), and play-by-play (reduced to the ~17 columns EPA aggregation
-  needs, ~1.28M plays, 1999-present) for 1999-present. This is the only
-  data source currently wired in.
+  juice), play-by-play (reduced to the ~27 columns EPA/QB/player-stat
+  aggregation needs, ~1.28M plays, 1999-present), and the player id
+  crosswalk (`import_players()`, for prop name matching). Used for
+  everything historical -- the only source backtesting ever touches.
+- **The Odds API** (optional, `ODDS_API_KEY`): real current-week game odds
+  (multi-book) and player prop lines. Never used for historical backtesting
+  (the plan used here doesn't provide historical odds); the pipeline works
+  fully without a key, just without live-odds refresh or player props.
 - Every raw pull is cached with a provenance sidecar (`data/raw/*.meta.json`:
-  source, fetched_at, seasons, row count, `is_real_data: true`).
+  source, fetched_at, seasons, row count, `is_real_data: true`) or, for live
+  odds, a `live_odds_meta`/`requests_remaining` entry in the prediction
+  snapshot itself.
 - No synthetic, imputed, or "filled-in" odds/injuries/results anywhere in the
   pipeline. Missing market data shows up as `null` and a `data_quality_flags`
   entry in prediction snapshots (e.g. `no_moneyline_odds`,
-  `insufficient_model_training_history`).
+  `insufficient_model_training_history`). An unrecognized or ambiguous
+  player-prop name is dropped and logged, never guessed.
 
 ## Repo layout
 
 ```
 src/nfl/
-  data/           ingestion from nflverse, with provenance sidecars
+  data/           ingestion (nflverse + optional live odds), with provenance
+                  sidecars; odds_api.py, live_odds_aggregation.py,
+                  player_props_odds.py, player_matching.py, team_mapping.py
   elo/            leak-free chronological Elo engine
-  features/       leak-free feature builders (rolling_scoring.py, epa_features.py)
+  features/       leak-free feature builders (rolling_scoring.py,
+                  epa_features.py, qb_features.py, player_stats.py)
   models/
     moneyline/    baselines, logistic regression, isotonic-calibrated Elo
     spread/       margin (Normal dist) model
     total/        points (Normal dist) model
+    props/        player-prop trailing-average projection model
+    gbm.py        nested-CV XGBoost (backtest comparison only, not adopted)
+    variance.py   heteroskedastic sigma (reverted, kept as documentation)
   ensemble/       log-odds model+market blending
   evaluation/     accuracy/log loss/Brier/ECE/reliability tables
   backtest/       walk-forward backtest runners (the actual test)
-  reporting/      prediction snapshot generator, results recorder,
-                  calibration plots, static site builder
+  reporting/      prediction snapshot generator (predict.py), player-props
+                  assembly (props_predict.py), parlay selection (parlay.py),
+                  results recorder, calibration plots, static site builder
 configs/          config.yaml -- season ranges, Elo/model hyperparameters
 tests/
-  unit/           metric correctness
+  unit/           metric correctness, parlay/props aggregation logic
   property/       Hypothesis property tests (bounded probabilities, zero-sum
                   Elo transfers, etc.)
   leakage/        the safety net -- see above
@@ -430,6 +556,7 @@ data/
   processed/      backtest outputs (gitignored, regenerated by `make backtest`)
   predictions/    immutable weekly snapshots + results_log.csv (committed)
 docs/             published static site (GitHub Pages serves this directory)
+.env.example      template for ODDS_API_KEY (copy to .env, gitignored)
 ```
 
 ## Running it
@@ -441,25 +568,34 @@ Requires Python 3.11 (nfl_data_py pins `pandas<2.0`, which has no wheels for
 make setup          # create venv, install pinned deps
 make test           # full test suite (unit + property + leakage)
 make backtest       # walk-forward moneyline + spread + total backtests
+make props-backtest # walk-forward player-props MAE + PIT calibration
 make predict        # generate this week's immutable prediction snapshot
 make report         # calibration plots + rebuild docs/index.html
 make weekly         # predict -> record last week's results -> backtest -> report
 ```
 
+Copy `.env.example` to `.env` and add a real `ODDS_API_KEY` (from
+[the-odds-api.com](https://the-odds-api.com)) to enable live game odds and
+player props -- entirely optional; everything else works without it.
+
 CI (`.github/workflows/ci.yml`) runs the full test suite, including the
-leakage suite, on every push and PR.
+leakage suite, on every push and PR. CI never needs `ODDS_API_KEY` -- no
+test depends on live odds or player props being fetched.
 
 ## Weekly workflow
 
-1. `make predict` -- refreshes schedules/lines from nflverse, refits Elo +
-   models on everything known as-of-now, writes one new immutable JSON
-   snapshot for the nearest week with unplayed games.
+1. `make predict` -- refreshes schedules/lines from nflverse (and live odds
+   + player props if `ODDS_API_KEY` is set), refits Elo + models on
+   everything known as-of-now, writes one new immutable JSON snapshot for
+   the nearest week with unplayed games.
 2. (after games complete) `make record-results` -- appends realized
    scores/outcomes to `results_log.csv` for any snapshot whose games have
    now been played. Never edits the snapshot itself.
 3. `make backtest && make report` -- refreshes the walk-forward backtest and
-   rebuilds the calibration plots + static site from the latest snapshot and
-   backtest artifacts.
+   rebuilds the calibration plots + static site. The site shows the full
+   week's original slate (earliest complete snapshot) with results
+   annotated as games finish, and player props from whichever snapshot most
+   recently had them.
 4. Commit and push `docs/` (and the new snapshot under `data/predictions/`) --
    GitHub Pages publishes automatically.
 
