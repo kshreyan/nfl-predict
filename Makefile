@@ -1,4 +1,4 @@
-.PHONY: setup test leakage-test backtest predict report deploy
+.PHONY: setup test leakage-test backtest props-backtest predict report deploy
 
 VENV := .venv/bin
 PY := $(VENV)/python3
@@ -17,6 +17,9 @@ leakage-test:
 backtest:
 	$(PY) -m src.nfl.backtest.moneyline_backtest
 	$(PY) -m src.nfl.backtest.spread_total_backtest
+
+props-backtest:
+	$(PY) -m src.nfl.backtest.player_props_backtest
 
 predict:
 	$(PY) -m src.nfl.reporting.predict

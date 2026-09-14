@@ -71,6 +71,29 @@ def _full_week_snapshot() -> dict | None:
     return json.loads(files[0].read_text())  # fall back to the raw earliest if none qualify
 
 
+def _latest_props_for_week() -> tuple[list[dict] | None, str | None]:
+    """Player props aren't recomputable from an old snapshot the way the
+    parlay table is -- they need a fresh live-odds fetch -- so unlike the
+    full game slate (which intentionally uses the EARLIEST snapshot), props
+    come from whichever snapshot for the current week most recently
+    actually included them (the latest one that has a non-empty
+    `player_props`, searching backwards since not every run necessarily
+    fetched them, e.g. if the odds API was unavailable that run)."""
+    index_path = PRED_DIR / "index.json"
+    if not index_path.exists():
+        return None, None
+    index = json.loads(index_path.read_text())
+    if not index:
+        return None, None
+    current_key = sorted(index.keys())[-1]
+    files = sorted(PRED_DIR.glob(f"{current_key}_*.json"), reverse=True)
+    for f in files:
+        snap = json.loads(f.read_text())
+        if snap.get("player_props"):
+            return snap["player_props"], snap.get("player_props_disclaimer")
+    return None, None
+
+
 def _load_final_scores() -> pd.DataFrame | None:
     path = RAW_DIR / "schedules.parquet"
     if not path.exists():
@@ -318,6 +341,46 @@ def _parlay_table_html(parlay: dict | None) -> str:
     enough for the combined-probability math to mean anything, so they're never combined here.</p>"""
 
 
+_PROPS_MARKET_LABELS = {
+    "player_pass_yds": "Pass yds", "player_pass_tds": "Pass TDs",
+    "player_rush_yds": "Rush yds", "player_reception_yds": "Rec yds", "player_receptions": "Receptions",
+}
+
+
+def _props_table_html(props: list[dict] | None, disclaimer: str | None) -> str:
+    if not props:
+        return "<p><em>No player prop lines matched this week (either the odds API wasn't configured for " \
+               "this run, or no market currently lists props for this week's games).</em></p>"
+
+    rows = "".join(
+        f"""<tr>
+          <td>{p['matchup']}</td><td>{p['player_name']}</td>
+          <td>{_PROPS_MARKET_LABELS.get(p['market'], p['market'])}</td>
+          <td>{p['line']:.1f}</td><td>{p['model_projection']:.1f}</td>
+          <td>{p['pick']['side']}</td>
+          <td>{p['pick']['probability']*100:.1f}%</td>
+          <td class="{'edge-pos' if p['edge_vs_market'] > 0.02 else ('edge-neg' if p['edge_vs_market'] < -0.02 else 'edge-flat')}">
+            {p['edge_vs_market']*100:+.1f}pp</td>
+          <td>{p['n_books']}</td>
+        </tr>"""
+        for p in sorted(props, key=lambda x: -abs(x["edge_vs_market"]))
+    )
+    disclaimer_html = f'<div class="parlay-warning">{disclaimer}</div>' if disclaimer else ""
+    return f"""
+    {disclaimer_html}
+    <div style="overflow-x:auto">
+    <table class="metrics">
+      <thead><tr>
+        <th>Game</th><th>Player</th><th>Market</th><th>Line</th><th>Model proj.</th>
+        <th>Pick</th><th>Prob.</th><th>Edge</th><th>Books</th>
+      </tr></thead>
+      <tbody>{rows}</tbody>
+    </table>
+    </div>
+    <p class="note">Sorted by |edge| -- the biggest disagreements with the market are listed first
+    specifically so they're easy to scrutinize, not because they're the best picks.</p>"""
+
+
 def build() -> None:
     snapshot = _full_week_snapshot()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -344,6 +407,9 @@ def build() -> None:
         gen_at = "—"
         parlay_html = _parlay_table_html(None)
         slate_note = ""
+
+    props, props_disclaimer = _latest_props_for_week()
+    props_html = _props_table_html(props, props_disclaimer)
 
     html = f"""<!doctype html>
 <html lang="en">
@@ -448,6 +514,9 @@ def build() -> None:
 
   <h2>This week's suggested parlay</h2>
   {parlay_html}
+
+  <h2>Player props</h2>
+  {props_html}
 
   <h2>Moneyline backtest (walk-forward, leak-free)</h2>
   {_metrics_table_html()}

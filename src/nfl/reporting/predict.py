@@ -25,6 +25,8 @@ import numpy as np
 import pandas as pd
 
 from src.nfl.data.ingest import fetch_pbp_for_epa, fetch_schedules
+from src.nfl.data.live_odds_aggregation import aggregate_game_odds
+from src.nfl.data.odds_api import OddsAPIError, fetch_game_odds
 from src.nfl.elo.engine import EloConfig, fit_hfa, run_elo
 from src.nfl.ensemble.blend import fit_and_predict_ensemble
 from src.nfl.features.epa_features import add_trailing_epa_features
@@ -46,11 +48,52 @@ from src.nfl.models.spread.production import fit_and_predict_margin
 from src.nfl.models.total.production import fit_and_predict_total
 from src.nfl.models.total.total_model import over_actual, over_probability, walk_forward_total
 from src.nfl.reporting.parlay import build_parlay
+from src.nfl.reporting.props_predict import build_player_props
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 PRED_DIR = Path("data/predictions")
+
+
+def _fetch_live_odds_by_matchup() -> tuple[dict[tuple[str, str], dict], dict | None]:
+    """Best-effort: live odds are a supplement, not a requirement. If
+    ODDS_API_KEY isn't configured or the API call fails for any reason, log
+    it and fall back to nflverse's embedded lines only -- never crash the
+    whole prediction run over an optional data source."""
+    try:
+        raw_odds, meta = fetch_game_odds()
+    except OddsAPIError as e:
+        logger.warning("Live odds unavailable (%s) -- using nflverse-embedded lines only.", e)
+        return {}, None
+    aggregated = aggregate_game_odds(raw_odds)
+    by_matchup = {(g["home_team"], g["away_team"]): g for g in aggregated}
+    logger.info("Live odds: %d games matched (%s requests remaining)", len(by_matchup), meta["requests_remaining"])
+    return by_matchup, meta
+
+
+def _apply_live_odds_override(
+    df: pd.DataFrame, target_game_ids: set[str], live_odds_by_matchup: dict, col: str, live_field: str,
+) -> set[str]:
+    """Overrides `col` in-place for rows whose game_id is in
+    `target_game_ids` whenever a live-odds match exists AND that specific
+    field was available (never defaulted). Matched by game_id rather than
+    a positional mask because some feature builders downstream (e.g.
+    total_model's, via rolling_scoring's chronological sort) reset the
+    index, which would silently misalign a boolean mask built against a
+    different frame's index.
+
+    Returns the set of game_ids actually touched, for the live_odds_source
+    data-quality flag."""
+    touched = set()
+    row_mask = df["game_id"].isin(target_game_ids)
+    for idx in df.index[row_mask]:
+        key = (df.at[idx, "home_team"], df.at[idx, "away_team"])
+        live = live_odds_by_matchup.get(key)
+        if live is not None and live.get(live_field) is not None:
+            df.at[idx, col] = live[live_field]
+            touched.add(df.at[idx, "game_id"])
+    return touched
 
 
 def _current_target_week(games: pd.DataFrame) -> tuple[int, int]:
@@ -78,6 +121,27 @@ def generate() -> Path:
     elo_games = run_elo(games, cfg)
     logger.info("Fitted HFA (all history as-of-now): %.1f Elo pts", hfa)
 
+    # ---- Live odds (The Odds API): override spread_line/total_line for the
+    # target week's unplayed games with a fresh, real, multi-book consensus,
+    # BEFORE anything downstream reads those columns -- so the model's own
+    # cover/over probability, the market-implied probability, and the pick's
+    # displayed line are all computed against the SAME line. Historical rows
+    # (used to train the ensemble) are never touched; only today's live line
+    # differs from nflverse's, so overriding history would be look-ahead
+    # nonsense, not an improvement. Optional: falls back to nflverse-embedded
+    # lines untouched if the API is unavailable. ----
+    live_odds_by_matchup, live_odds_meta = _fetch_live_odds_by_matchup()
+    target_unplayed_mask = (
+        (elo_games["season"] == target_season)
+        & (elo_games["week"] == target_week)
+        & elo_games["home_score"].isna()
+    )
+    target_game_ids = set(elo_games.loc[target_unplayed_mask, "game_id"])
+    live_spread_games = _apply_live_odds_override(
+        elo_games, target_game_ids, live_odds_by_matchup, "spread_line", "spread_line")
+    live_total_games = _apply_live_odds_override(
+        elo_games, target_game_ids, live_odds_by_matchup, "total_line", "total_line")
+
     # ---- EPA + QB (shared by all three markets) ----
     pbp = fetch_pbp_for_epa(seasons)
     elo_games = add_trailing_epa_features(elo_games, pbp, window=10)
@@ -98,6 +162,8 @@ def generate() -> Path:
     # purely to give the ensemble real model-vs-market training data.
     elo_games["pred_moneyline_model"] = ml_pred_future.combine_first(ml_pred_historical)
     elo_games["pred_market_ml"] = market_implied_home_prob(elo_games)
+    live_ml_games = _apply_live_odds_override(
+        elo_games, target_game_ids, live_odds_by_matchup, "pred_market_ml", "home_moneyline_prob")
 
     feat = build_features(elo_games)
     elo_games["home_won"] = feat["home_won"]
@@ -125,6 +191,8 @@ def generate() -> Path:
         cover_prob_historical["cover_prob_hist"]
     )
     margin_df["market_cover_prob"] = market_implied_home_cover_prob(margin_df)
+    live_cover_games = _apply_live_odds_override(
+        margin_df, target_game_ids, live_odds_by_matchup, "market_cover_prob", "home_cover_prob")
     cover_actual = home_covers_actual(margin_df["home_score"], margin_df["away_score"], margin_df["spread_line"])
     margin_df["_cover_outcome_for_training"] = cover_actual.where(cover_actual != 0.5)
     margin_df["pred_ensemble_cover_prob"] = fit_and_predict_ensemble(
@@ -144,12 +212,16 @@ def generate() -> Path:
     )
     total_df["pred_over_prob"] = total_df["pred_over_prob"].combine_first(over_prob_historical["over_prob_hist"])
     total_df["market_over_prob"] = market_implied_over_prob(total_df)
+    live_over_games = _apply_live_odds_override(
+        total_df, target_game_ids, live_odds_by_matchup, "market_over_prob", "over_prob")
     over_act = over_actual(total_df["total_points"], total_df["total_line"])
     total_df["_over_outcome_for_training"] = over_act.where(over_act != 0.5)
     total_df["pred_ensemble_over_prob"] = fit_and_predict_ensemble(
         total_df, model_prob_col="pred_over_prob", market_prob_col="market_over_prob",
         outcome_col="_over_outcome_for_training",
     )
+
+    live_odds_games = live_spread_games | live_total_games | live_ml_games | live_cover_games | live_over_games
 
     # ---- Assemble the slate: only games not yet played ----
     slate = elo_games[
@@ -264,9 +336,13 @@ def generate() -> Path:
                 "pick": total_pick,
             },
             "data_quality_flags": data_quality,
+            "live_odds_used": row.game_id in live_odds_games,
         })
 
     parlay = build_parlay(records)
+
+    logger.info("Building player prop predictions...")
+    player_props = build_player_props(games, pbp, slate)
 
     generated_at = datetime.now(timezone.utc)
     snapshot = {
@@ -278,6 +354,22 @@ def generate() -> Path:
                        "once generated; see docs for realistic accuracy ceilings vs the closing line.",
         "games": records,
         "parlay": parlay,
+        "live_odds_meta": live_odds_meta,  # None if the API was unavailable this run
+        "n_games_with_live_odds": len(live_odds_games),
+        "player_props": player_props,
+        "player_props_disclaimer": (
+            "This projection is a player's own trailing average ONLY -- it does not adjust for "
+            "opponent defensive strength, unlike the market and unlike this system's own game-level "
+            "models. Expect it to disagree with the market more, and less meaningfully, than the "
+            "game-level markets do: a large edge here is more likely a model blind spot (e.g. a hot "
+            "streak against weak defenses that the market has already discounted) than a genuine "
+            "mispricing -- read a large edge as 'investigate the matchup yourself,' not 'the model "
+            "found value.' No real historical player-prop lines exist anywhere (checked directly) so "
+            "this cannot be backtested against real market lines the way moneyline/spread/total are; "
+            "what IS backtested honestly: the trailing average beats a naive league-average baseline "
+            "on MAE, and its assumed Normal distribution is reasonably (not perfectly) calibrated -- "
+            "see data/processed/player_props_backtest_summary.json."
+        ),
     }
 
     PRED_DIR.mkdir(parents=True, exist_ok=True)

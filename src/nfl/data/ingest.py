@@ -52,21 +52,29 @@ EPA_PBP_COLUMNS = [
     # "season" is deliberately not requested here: nfl_data_py silently
     # drops it from the output when fetching multiple years with
     # thread_requests=True (confirmed empirically; a single-year fetch
-    # keeps it). Harmless -- nothing in epa_features.py reads pbp['season'],
-    # every join happens via game_id (which already encodes season as its
+    # keeps it). Harmless -- nothing downstream reads pbp['season'], every
+    # join happens via game_id (which already encodes season as its
     # prefix, e.g. "2023_01_ARI_WAS") and season comes from the schedule
     # frame everywhere it's needed.
     "game_id", "week", "season_type", "posteam", "defteam",
     "play_type", "epa", "success", "pass", "rush", "down", "wind", "temp",
     "roof", "home_team", "away_team", "play", "wp",
     "passer_id", "qb_dropback", "qb_epa",
+    # Player-level raw stats (features/player_stats.py): trailing player
+    # projections for the props pipeline. Sourced from play-by-play rather
+    # than nflverse's separate "weekly" release for the same reason as QB
+    # EPA -- that release lags the current season, pbp does not.
+    "complete_pass", "yards_gained", "rusher_id", "rusher",
+    "receiver_id", "receiver", "pass_touchdown", "rush_touchdown",
 ]
 
 
 def fetch_pbp_for_epa(seasons: list[int]) -> pd.DataFrame:
-    """Play-by-play, reduced to the columns EPA aggregation actually needs
-    (full pbp is 397 columns / ~1.2M rows across history -- unfiltered that's
-    multiple GB in memory for no benefit here). Cached as pbp_epa.parquet."""
+    """Play-by-play, reduced to the columns EPA/QB/player-stat aggregation
+    actually need (full pbp is 397 columns / ~1.2M rows across history --
+    unfiltered that's multiple GB in memory for no benefit here). Cached as
+    pbp_epa.parquet. (Name predates the player-stats columns being added;
+    kept to avoid replumbing every call site for a rename.)"""
     df = nfl.import_pbp_data(
         seasons, columns=EPA_PBP_COLUMNS, include_participation=False,
         downcast=True, cache=False, thread_requests=True,

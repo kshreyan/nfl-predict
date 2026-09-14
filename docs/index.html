@@ -83,8 +83,8 @@
     calibrated view, not a demonstrated edge. Predictions are generated pre-kickoff and immutable once written.
   </div>
 
-  <h2>This week: Week 1, 2026 season · 12/14 final</h2>
-  <p class="note">Full slate predicted pre-kickoff at 2026-09-13T13:34:01.842488+00:00 (site rebuilt 2026-09-14 05:59 UTC). Games already played show
+  <h2>This week: Week 1, 2026 season · 13/14 final</h2>
+  <p class="note">Full slate predicted pre-kickoff at 2026-09-13T13:34:01.842488+00:00 (site rebuilt 2026-09-14 17:31 UTC). Games already played show
   their final score and whether each pick hit -- predictions themselves are never changed after the fact.</p>
 
   <div class="legend">
@@ -338,15 +338,15 @@
         
       </div>
     </div>
-    <div class="card">
+    <div class="card card-final">
       <div class="card-head">
         <span class="matchup">DAL <span class="at">@</span> NYG</span>
-        <span class="gameday">2026-09-13</span>
+        <span class="gameday"><span class="final-badge">FINAL 20-28</span></span>
       </div>
       
     <div class="pick-row tier-medium">
       <span class="pick-market">ML</span>
-      <span class="pick-side">DAL</span>
+      <span class="pick-side">DAL <span class="outcome-miss">✗ miss</span></span>
       <span class="pick-conf">
         <span class="conf-bar"><span class="conf-fill" style="width:61%"></span></span>
         61%
@@ -356,7 +356,7 @@
       
     <div class="pick-row tier-low">
       <span class="pick-market">SPREAD</span>
-      <span class="pick-side">DAL -3.0</span>
+      <span class="pick-side">DAL -3.0 <span class="outcome-miss">✗ miss</span></span>
       <span class="pick-conf">
         <span class="conf-bar"><span class="conf-fill" style="width:50%"></span></span>
         50%
@@ -366,7 +366,7 @@
       
     <div class="pick-row tier-low">
       <span class="pick-market">TOTAL</span>
-      <span class="pick-side">OVER (48.5)</span>
+      <span class="pick-side">OVER (48.5) <span class="outcome-hit">✓ hit</span></span>
       <span class="pick-conf">
         <span class="conf-bar"><span class="conf-fill" style="width:51%"></span></span>
         51%
@@ -705,6 +705,318 @@
     <p class="note">One leg per game only (highest-probability market for that game), drawn only across
     <em>different</em> games -- same-game legs (e.g. a team's moneyline and its own spread) aren't independent
     enough for the combined-probability math to mean anything, so they're never combined here.</p>
+
+  <h2>Player props</h2>
+  
+    <div class="parlay-warning">This projection is a player's own trailing average ONLY -- it does not adjust for opponent defensive strength, unlike the market and unlike this system's own game-level models. Expect it to disagree with the market more, and less meaningfully, than the game-level markets do: a large edge here is more likely a model blind spot (e.g. a hot streak against weak defenses that the market has already discounted) than a genuine mispricing -- read a large edge as 'investigate the matchup yourself,' not 'the model found value.' No real historical player-prop lines exist anywhere (checked directly) so this cannot be backtested against real market lines the way moneyline/spread/total are; what IS backtested honestly: the trailing average beats a naive league-average baseline on MAE, and its assumed Normal distribution is reasonably (not perfectly) calibrated -- see data/processed/player_props_backtest_summary.json.</div>
+    <div style="overflow-x:auto">
+    <table class="metrics">
+      <thead><tr>
+        <th>Game</th><th>Player</th><th>Market</th><th>Line</th><th>Model proj.</th>
+        <th>Pick</th><th>Prob.</th><th>Edge</th><th>Books</th>
+      </tr></thead>
+      <tbody><tr>
+          <td>DEN @ KC</td><td>Marvin Mims Jr.</td>
+          <td>Receptions</td>
+          <td>1.5</td><td>3.4</td>
+          <td>OVER</td>
+          <td>82.1%</td>
+          <td class="edge-pos">
+            +40.0pp</td>
+          <td>3</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>J.K. Dobbins</td>
+          <td>Rush yds</td>
+          <td>50.5</td><td>79.1</td>
+          <td>OVER</td>
+          <td>78.6%</td>
+          <td class="edge-pos">
+            +30.7pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>RJ Harvey</td>
+          <td>Rush yds</td>
+          <td>17.5</td><td>44.1</td>
+          <td>OVER</td>
+          <td>77.0%</td>
+          <td class="edge-pos">
+            +26.3pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Rashee Rice</td>
+          <td>Rec yds</td>
+          <td>53.5</td><td>71.4</td>
+          <td>OVER</td>
+          <td>72.9%</td>
+          <td class="edge-pos">
+            +24.8pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Marvin Mims Jr.</td>
+          <td>Rec yds</td>
+          <td>11.5</td><td>30.4</td>
+          <td>OVER</td>
+          <td>74.0%</td>
+          <td class="edge-pos">
+            +24.4pp</td>
+          <td>3</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Rashee Rice</td>
+          <td>Receptions</td>
+          <td>5.5</td><td>6.6</td>
+          <td>OVER</td>
+          <td>71.0%</td>
+          <td class="edge-pos">
+            +23.8pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Patrick Mahomes</td>
+          <td>Pass yds</td>
+          <td>224.5</td><td>268.9</td>
+          <td>OVER</td>
+          <td>69.2%</td>
+          <td class="edge-pos">
+            +22.4pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Bo Nix</td>
+          <td>Pass yds</td>
+          <td>228.0</td><td>272.9</td>
+          <td>OVER</td>
+          <td>69.4%</td>
+          <td class="edge-pos">
+            +22.2pp</td>
+          <td>6</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>RJ Harvey</td>
+          <td>Receptions</td>
+          <td>2.5</td><td>3.5</td>
+          <td>OVER</td>
+          <td>68.8%</td>
+          <td class="edge-pos">
+            +21.1pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Courtland Sutton</td>
+          <td>Rec yds</td>
+          <td>42.5</td><td>54.8</td>
+          <td>OVER</td>
+          <td>66.2%</td>
+          <td class="edge-pos">
+            +19.0pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Jaylen Waddle</td>
+          <td>Receptions</td>
+          <td>4.5</td><td>3.6</td>
+          <td>UNDER</td>
+          <td>66.6%</td>
+          <td class="edge-neg">
+            -18.9pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Pat Bryant</td>
+          <td>Rec yds</td>
+          <td>24.5</td><td>38.2</td>
+          <td>OVER</td>
+          <td>68.0%</td>
+          <td class="edge-pos">
+            +17.9pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Pat Bryant</td>
+          <td>Receptions</td>
+          <td>2.5</td><td>3.2</td>
+          <td>OVER</td>
+          <td>64.4%</td>
+          <td class="edge-pos">
+            +17.6pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Adam Trautman</td>
+          <td>Rec yds</td>
+          <td>6.5</td><td>17.1</td>
+          <td>OVER</td>
+          <td>64.1%</td>
+          <td class="edge-pos">
+            +15.9pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>RJ Harvey</td>
+          <td>Rec yds</td>
+          <td>16.5</td><td>28.6</td>
+          <td>OVER</td>
+          <td>66.0%</td>
+          <td class="edge-pos">
+            +15.8pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Tyquan Thornton</td>
+          <td>Rec yds</td>
+          <td>20.5</td><td>32.0</td>
+          <td>OVER</td>
+          <td>65.3%</td>
+          <td class="edge-pos">
+            +15.6pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Courtland Sutton</td>
+          <td>Receptions</td>
+          <td>3.5</td><td>4.5</td>
+          <td>OVER</td>
+          <td>68.8%</td>
+          <td class="edge-pos">
+            +14.2pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Kenneth Walker III</td>
+          <td>Rush yds</td>
+          <td>64.5</td><td>75.9</td>
+          <td>OVER</td>
+          <td>62.4%</td>
+          <td class="edge-pos">
+            +14.0pp</td>
+          <td>6</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Adam Trautman</td>
+          <td>Receptions</td>
+          <td>0.5</td><td>1.6</td>
+          <td>OVER</td>
+          <td>71.0%</td>
+          <td class="edge-pos">
+            +13.4pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Noah Gray</td>
+          <td>Receptions</td>
+          <td>1.5</td><td>1.6</td>
+          <td>OVER</td>
+          <td>52.4%</td>
+          <td class="edge-pos">
+            +12.1pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Kenneth Walker III</td>
+          <td>Receptions</td>
+          <td>3.5</td><td>2.5</td>
+          <td>UNDER</td>
+          <td>68.8%</td>
+          <td class="edge-neg">
+            -11.2pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Xavier Worthy</td>
+          <td>Receptions</td>
+          <td>3.5</td><td>2.6</td>
+          <td>UNDER</td>
+          <td>66.6%</td>
+          <td class="edge-neg">
+            -9.1pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Kenneth Walker III</td>
+          <td>Rec yds</td>
+          <td>19.5</td><td>26.4</td>
+          <td>OVER</td>
+          <td>59.3%</td>
+          <td class="edge-pos">
+            +8.9pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Jaylen Waddle</td>
+          <td>Rec yds</td>
+          <td>58.5</td><td>50.8</td>
+          <td>UNDER</td>
+          <td>60.4%</td>
+          <td class="edge-neg">
+            -8.9pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Noah Gray</td>
+          <td>Rec yds</td>
+          <td>10.5</td><td>16.4</td>
+          <td>OVER</td>
+          <td>57.9%</td>
+          <td class="edge-pos">
+            +8.3pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Evan Engram</td>
+          <td>Rec yds</td>
+          <td>22.5</td><td>28.4</td>
+          <td>OVER</td>
+          <td>57.9%</td>
+          <td class="edge-pos">
+            +7.6pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Travis Kelce</td>
+          <td>Receptions</td>
+          <td>4.5</td><td>4.4</td>
+          <td>UNDER</td>
+          <td>52.4%</td>
+          <td class="edge-pos">
+            +5.7pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Xavier Worthy</td>
+          <td>Rec yds</td>
+          <td>36.5</td><td>37.4</td>
+          <td>OVER</td>
+          <td>51.2%</td>
+          <td class="edge-pos">
+            +2.9pp</td>
+          <td>6</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Travis Kelce</td>
+          <td>Rec yds</td>
+          <td>41.5</td><td>38.9</td>
+          <td>UNDER</td>
+          <td>53.6%</td>
+          <td class="edge-flat">
+            -1.6pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Evan Engram</td>
+          <td>Receptions</td>
+          <td>2.5</td><td>2.6</td>
+          <td>OVER</td>
+          <td>52.4%</td>
+          <td class="edge-flat">
+            -1.6pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Patrick Mahomes</td>
+          <td>Pass TDs</td>
+          <td>1.5</td><td>1.4</td>
+          <td>UNDER</td>
+          <td>54.4%</td>
+          <td class="edge-flat">
+            +1.1pp</td>
+          <td>5</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Tyquan Thornton</td>
+          <td>Receptions</td>
+          <td>1.5</td><td>1.1</td>
+          <td>UNDER</td>
+          <td>57.3%</td>
+          <td class="edge-flat">
+            -0.2pp</td>
+          <td>4</td>
+        </tr><tr>
+          <td>DEN @ KC</td><td>Bo Nix</td>
+          <td>Pass TDs</td>
+          <td>1.5</td><td>1.2</td>
+          <td>UNDER</td>
+          <td>58.8%</td>
+          <td class="edge-flat">
+            +0.1pp</td>
+          <td>6</td>
+        </tr></tbody>
+    </table>
+    </div>
+    <p class="note">Sorted by |edge| -- the biggest disagreements with the market are listed first
+    specifically so they're easy to scrutinize, not because they're the best picks.</p>
 
   <h2>Moneyline backtest (walk-forward, leak-free)</h2>
   
