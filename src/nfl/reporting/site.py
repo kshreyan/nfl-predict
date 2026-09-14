@@ -170,6 +170,50 @@ def _spread_total_summary_html() -> str:
     weights learned walk-forward, same discipline as the moneyline ensemble.</p>"""
 
 
+def _fmt_odds(o: int | None) -> str:
+    return "—" if o is None else f"{o:+d}"
+
+
+def _parlay_table_html(parlay: dict | None) -> str:
+    if parlay is None:
+        return "<p><em>Not enough games with picks this week to combine into a parlay.</em></p>"
+
+    rows = "".join(
+        f"""<tr>
+          <td>{i + 1}</td><td>{leg['matchup']}</td><td>{leg['market']}</td>
+          <td>{leg['pick']}</td><td>{leg['model_probability']*100:.1f}%</td>
+          <td>{'—' if leg['market_probability'] is None else f"{leg['market_probability']*100:.1f}%"}</td>
+          <td>{'—' if leg['edge_vs_market'] is None else f"{leg['edge_vs_market']*100:+.1f}pp"}</td>
+        </tr>"""
+        for i, leg in enumerate(parlay["legs"])
+    )
+    return f"""
+    <div class="parlay-warning">
+      Combining picks multiplies risk, not just reward: {parlay['n_legs']} legs at these probabilities give only a
+      <strong>{parlay['combined_model_probability']*100:.1f}% chance every leg hits</strong> -- each leg's own
+      probability may look reasonable, the <em>combined</em> number is what actually matters for a parlay slip, and
+      it drops fast as legs are added. This is the model's most-confident combination this week, not a
+      recommendation to place it.
+    </div>
+    <table class="metrics">
+      <thead><tr><th>#</th><th>Game</th><th>Market</th><th>Pick</th><th>Model prob.</th><th>Market prob.</th><th>Edge</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table>
+    <table class="metrics" style="margin-top:0.6rem">
+      <thead><tr><th>Combined ({parlay['n_legs']} legs)</th><th>Probability</th><th>Fair odds (implied, not a real book price)</th></tr></thead>
+      <tbody>
+        <tr><td>Model</td><td>{parlay['combined_model_probability']*100:.1f}%</td>
+            <td>{_fmt_odds(parlay['combined_model_american_odds'])}</td></tr>
+        <tr><td>Market-implied</td>
+            <td>{'—' if parlay['combined_market_probability'] is None else f"{parlay['combined_market_probability']*100:.1f}%"}</td>
+            <td>{_fmt_odds(parlay['combined_market_american_odds'])}</td></tr>
+      </tbody>
+    </table>
+    <p class="note">One leg per game only (highest-probability market for that game), drawn only across
+    <em>different</em> games -- same-game legs (e.g. a team's moneyline and its own spread) aren't independent
+    enough for the combined-probability math to mean anything, so they're never combined here.</p>"""
+
+
 def build() -> None:
     snapshot = _latest_snapshot()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -178,10 +222,12 @@ def build() -> None:
         cards_html = "".join(_game_card_html(g) for g in snapshot["games"])
         week_header = f"Week {snapshot['week']}, {snapshot['season']} season"
         gen_at = snapshot["generated_at"]
+        parlay_html = _parlay_table_html(snapshot.get("parlay"))
     else:
         cards_html = "<p>No prediction snapshot generated yet.</p>"
         week_header = "No slate yet"
         gen_at = "—"
+        parlay_html = _parlay_table_html(None)
 
     html = f"""<!doctype html>
 <html lang="en">
@@ -202,6 +248,8 @@ def build() -> None:
   .legend {{ background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.9rem 1.1rem;
              font-size: 0.82rem; color: #334155; margin: 1rem 0 1.6rem; }}
   .legend b {{ color: #0f172a; }}
+  .parlay-warning {{ background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 0.8rem 1rem;
+                      font-size: 0.85rem; color: #7f1d1d; margin: 0.6rem 0 1rem; }}
 
   .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 1rem; }}
   .card {{ background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 1rem 1.1rem;
@@ -275,6 +323,9 @@ def build() -> None:
   </div>
 
   <div class="grid">{cards_html}</div>
+
+  <h2>This week's suggested parlay</h2>
+  {parlay_html}
 
   <h2>Moneyline backtest (walk-forward, leak-free)</h2>
   {_metrics_table_html()}

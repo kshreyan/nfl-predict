@@ -3,8 +3,10 @@
 Run with: python -m src.nfl.reporting.predict
 
 Pipeline: refresh schedules -> full-history Elo -> moneyline/spread/total
-production models -> market-implied probabilities -> ensemble -> write one
-timestamped, never-overwritten JSON file per run to data/predictions/.
+production models -> market-implied probabilities -> ensemble -> select the
+best cross-game parlay combination from those same picks (reporting/parlay.py,
+pure combination logic, no new modeling) -> write one timestamped,
+never-overwritten JSON file per run to data/predictions/.
 
 Immutability: each run writes a NEW file named by generation timestamp.
 Existing snapshot files are never edited or deleted by this script. Actual
@@ -43,6 +45,7 @@ from src.nfl.models.spread.margin_model import (
 from src.nfl.models.spread.production import fit_and_predict_margin
 from src.nfl.models.total.production import fit_and_predict_total
 from src.nfl.models.total.total_model import over_actual, over_probability, walk_forward_total
+from src.nfl.reporting.parlay import build_parlay
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -263,6 +266,8 @@ def generate() -> Path:
             "data_quality_flags": data_quality,
         })
 
+    parlay = build_parlay(records)
+
     generated_at = datetime.now(timezone.utc)
     snapshot = {
         "generated_at": generated_at.isoformat(),
@@ -272,6 +277,7 @@ def generate() -> Path:
         "disclaimer": "Research/analytics project. Not betting advice. Predictions are immutable "
                        "once generated; see docs for realistic accuracy ceilings vs the closing line.",
         "games": records,
+        "parlay": parlay,
     }
 
     PRED_DIR.mkdir(parents=True, exist_ok=True)

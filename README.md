@@ -182,6 +182,31 @@ read a pick as "the model's calibrated view," not "a demonstrated edge":
 the legend on the page says this explicitly, and a large edge-vs-market
 number is flagged as "the model disagrees with the market," not "bet this."
 
+### Suggested parlay (`reporting/parlay.py`)
+
+A separate table combining the model's highest-confidence pick from each of
+up to 4 *different* games into one parlay, with the combined (product)
+probability shown plainly -- the whole point is to make compounding risk
+visible, not to encourage more legs. Design choices, deliberately
+conservative:
+
+- **One leg per game, never two.** A team's moneyline and its own spread
+  are mechanically correlated (a blowout wins both), so multiplying their
+  probabilities together would overstate the combined chance. Cross-game
+  legs are a much safer independence assumption, and this system's own
+  residual-correlation check (see "joint scoreline model" note above) never
+  found a meaningful cross-game effect to model either.
+- **Pure combination logic, no new modeling.** `build_parlay()` only
+  selects and multiplies already-computed, already-backtested per-game
+  pick probabilities -- it is not itself a model and needed no separate
+  backtest, just 15 unit tests covering the selection/product/edge-cases.
+- **Combined probability shown for both model and market**, with fair (no-vig)
+  implied American odds for legibility -- explicitly labeled as not a real
+  offered sportsbook price, since no live parlay pricing is fetched.
+- Computed once as part of the immutable prediction snapshot (`predict.py`),
+  not re-derived at site-build time, so it's part of the same auditable
+  historical record as everything else.
+
 ## Anti-leakage guarantees
 
 `tests/leakage/` is the project's core safety net (27 tests, all passing).
