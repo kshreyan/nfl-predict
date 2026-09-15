@@ -259,72 +259,91 @@ home, favored by 2.5, point -2.5 -> converted spread_line = +2.5) in
 
 ### Player props (`reporting/props_predict.py`, `models/props/`)
 
-Real projections against real current-week lines, for `player_pass_yds`,
-`player_pass_tds`, `player_rush_yds`, `player_reception_yds`, and
-`player_receptions`. Requires `ODDS_API_KEY`; skipped entirely (not faked)
-without one.
+Real, **opponent-adjusted** projections against real current-week lines,
+for `player_pass_yds`, `player_pass_tds`, `player_rush_yds`,
+`player_reception_yds`, and `player_receptions`. Requires `ODDS_API_KEY`;
+skipped entirely (not faked) without one.
 
 **Data.** nflverse carries real player performance stats but no historical
-prop lines anywhere (see the retired "Player props: a real data wall"
-discussion in earlier project history) -- that hasn't changed. What changed
-is a live odds API key now provides real *current*-week lines, so a
-model-vs-market comparison is possible prospectively, just not
-retrospectively.
+prop lines anywhere -- unchanged. A live odds API key provides real
+*current*-week lines, so a model-vs-market comparison is possible
+prospectively, just not retrospectively.
 
-**Projection.** Deliberately the simplest defensible model: a player's own
-trailing average (last 8 games, leak-free, same chronological-deque pattern
-as every other trailing feature in this repo) over their *own* history --
-sourced from play-by-play (`qb_epa`-style: `passer_id`/`rusher_id`/
-`receiver_id` + `yards_gained` + touchdown flags), not nflverse's separate
-"weekly" release, because that release lags the current season the same way
-QB EPA's source does. No opponent-defense adjustment -- see "what's not
-built yet" above for why that matters.
+**Projection -- now opponent-adjusted (this was the headline gap, closed).**
+A Ridge regression on [the player's own trailing average, the *opponent
+defense's* trailing allowed value for that stat] (`features/
+opponent_defense_stats.py`, same leak-free chronological-deque pattern as
+every trailing feature here, sourced from play-by-play for the same
+current-season-lag reason as QB EPA). This replaced an earlier version that
+used the player's raw trailing average with no opponent adjustment at all.
+Backtested side by side against that exact predecessor, not assumed better:
 
-**Backtest (honest about its limits).** No real historical lines exist, so
-this cannot report "beat the line" accuracy the way spread/total do.
-What's reported instead (`make` target below, `data/processed/
-player_props_backtest_summary.json`): MAE of the trailing average vs
-actual, against a naive season-to-date-league-average baseline, and a PIT
-(probability-integral-transform) calibration check on the assumed
-Normal(trailing avg, sigma) distribution. 2015-2025 REG season:
-
-| Market | MAE (trailing avg) | MAE (league-avg baseline) | Calibration |
+| Market | MAE, league-avg baseline | MAE, no opponent adj. (old) | MAE, opponent-adjusted (new) |
 |---|---|---|---|
-| Passing yards | 71.2 | 79.0 | good (deciles ~0.09-0.11) |
-| Passing TDs | 0.92 | 0.96 | good (deciles ~0.07-0.13) |
-| Rushing yards | 26.2 | 30.6 | fair -- right-skewed, Normal over-predicts near the median |
-| Receiving yards | 21.8 | 25.9 | fair -- same skew |
-| Receptions | 1.59 | 1.86 | fair -- same skew |
+| Passing yards | 75.3 | 69.9 | **68.7** |
+| Passing TDs | 0.97 | 0.93 | **0.92** |
+| Rushing yards | 31.2 | 29.9 | **28.8** |
+| Receiving yards | 28.7 | 26.2 | **25.7** |
+| Receptions | 2.00 | 1.83 | **1.80** |
 
-Beats the naive baseline everywhere (real signal), calibration is good for
-the more symmetric passing stats and only fair for the right-skewed
-volume stats (a Normal distribution isn't a perfect fit for a stat with a
-floor at 0 and an occasional big game -- honestly reported, not hidden).
+Improves MAE on **every single market** -- a real, adopted win, not a wash.
+Calibration (PIT check on the assumed Normal distribution) is good for the
+more symmetric passing stats (deciles ~0.09-0.11) and reasonable-not-perfect
+for the right-skewed volume stats (rushing/receiving yards, receptions --
+Normal isn't a perfect fit for a stat with a floor at 0 and occasional big
+games). Full numbers: `data/processed/player_props_backtest_summary.json`,
+`make props-backtest`.
+
+**Tried and reverted: log-transforming the skewed stats.** The natural next
+fix for that imperfect calibration -- fit `log1p(actual)` instead of the
+raw value for rushing/receiving yards and receptions -- was implemented,
+backtested, and made things **worse** on both MAE (e.g. rushing yards
+25.75 -> 26.77) and calibration (the PIT skew didn't flatten, it flipped
+direction). Reverted; the code stays in `models/props/projection.py`
+(`log_transform` flag, off everywhere) with the real numbers in its
+docstring, same pattern as `models/variance.py` and `models/gbm.py`.
+Caught a real bug along the way: plain `log1p` is undefined for the
+negative single-game yardage a player tackled for losses can produce
+(fixed with a signed variant regardless of whether the transform itself
+was kept).
+
+**Volume qualification, raised based on real evidence.** A live run
+surfaced a fringe player (barely-qualifying trailing volume, one likely
+outlier game inflating his average) projected as a misleadingly huge edge.
+Checked directly rather than patched blindly: relative error (MAE / mean
+actual) falls *monotonically* as the minimum-trailing-volume qualification
+threshold rises, for every stat (e.g. receiving yards 64% relative error at
+2 trailing targets/game down to 59% at 4; passing yards 34% down to 33%
+from 10 to 20 attempts). Thresholds were raised accordingly (`player_pass_yds`/
+`player_pass_tds`: 10->20 attempts; `player_rush_yds`: 5->10 carries;
+`player_reception_yds`/`player_receptions`: 2->4 targets) to better match
+the kind of established role a sportsbook would actually post a line for.
 
 **Name matching.** The Odds API returns free-text names ("Patrick
 Mahomes"); nflverse's `import_players()` provides the real gsis_id
 crosswalk. Matched by normalized name (strip punctuation/suffixes,
 lowercase) with **no fuzzy matching** -- an unrecognized or ambiguous
 (two players, same normalized name) match is dropped and logged, never
-guessed. Tested against a real live fetch: 17/17 names matched on the
-first real run.
+guessed. 17/17 matched on the first real run.
 
-**Real observed result worth reading closely.** The first live run (Week 1,
-2026, DEN @ KC) produced mostly large, one-sided edges (+18pp to +40pp,
-nearly all favoring OVER). Checked by hand against real play-by-play (not
-assumed a bug): Bo Nix's 272.9-yard projection is the exact average of his
-real last 8 games (291, 331, 218, 306, 348, 217, 175, 297) -- correct
-arithmetic on real data, not a bug. The likely explanation is exactly the
-disclosed limitation above: no opponent-defense adjustment, and the
-trailing window includes playoff games (which can run hot for a team that
-made a deep run) without distinction. This is presented as a live example
-of why the dashboard's disclaimer says a large prop edge means "investigate
-the matchup yourself," not "the model found value" -- and why this
-limitation is listed above rather than left implicit.
+**What's still genuinely missing, and why the remaining edges are still
+often large.** After all of the above, a live run still shows sizeable
+edges (e.g. +30-60pp on several DEN @ KC receiving props). Investigated
+directly rather than shrugged off: these are NOT low-sample fringe players
+(checked -- e.g. one flagged case had 19 real games of trailing history,
+another 49) and NOT a code bug (checked -- hand-verified projections match
+real play-by-play arithmetic exactly). The honest remaining explanation is
+that this model has **no real-time signal**: injury reports, depth-chart
+changes, a coach's stated game plan, or a player's role having changed
+since last season -- all things the market prices in and a season-old
+trailing average structurally cannot. This is the actual reason a large
+prop edge should be read as "investigate the matchup yourself," not "the
+model found value," and it's why that limitation is now stated in those
+specific terms in the dashboard's own disclaimer rather than left vague.
 
 ## Anti-leakage guarantees
 
-`tests/leakage/` is the project's core safety net (30 tests, all passing).
+`tests/leakage/` is the project's core safety net (33 tests, all passing).
 What they actually verify:
 
 - **Elo**: a game's pre-game rating and predicted probability are byte-identical
@@ -446,11 +465,13 @@ too-good-to-be-true backtest number is a bug report, not a result.**
   real multi-book current-week lines from The Odds API, optional and
   additive, never touching historical backtesting
 - **Player props** (`reporting/props_predict.py`, `models/props/`,
-  `features/player_stats.py`): real trailing-average projections against
-  real current-week prop lines, real player-name matching via nflverse's
-  own id crosswalk, honestly backtested on MAE + PIT calibration (no real
-  historical lines exist to backtest "beat the line" against -- disclosed,
-  not hidden)
+  `features/player_stats.py`, `features/opponent_defense_stats.py`):
+  opponent-adjusted projections (Ridge on player trailing + opponent
+  trailing-allowed, backtested to beat a no-adjustment baseline on every
+  market) against real current-week prop lines, real player-name matching
+  via nflverse's own id crosswalk, honestly backtested on MAE + PIT
+  calibration (no real historical lines exist to backtest "beat the line"
+  against -- disclosed, not hidden)
 - **Suggested parlay** (`reporting/parlay.py`): best cross-game combination
   of the week's picks, leading with the compounding-risk math, not the
   payout
@@ -487,13 +508,16 @@ too-good-to-be-true backtest number is a bug report, not a result.**
   accumulate in `results_log.csv` as the season progresses. (Live game odds
   ARE now fetched -- see below -- but The Odds API's plan used here doesn't
   provide historical odds either, so this doesn't change the CLV story.)
-- **Opponent-defense-adjusted player projections.** The player-props
-  projection (below) is a player's own trailing average only -- it doesn't
-  adjust for the specific opponent's defensive strength the way the
-  game-level models adjust for opponent EPA. This is the most likely
-  explanation for the large, mostly one-sided edges observed in the first
-  real week this was run (see the player props section below) -- a
-  documented, honest limitation, not swept under the rug.
+- **Real-time signal for player props (injuries, depth charts, role
+  changes).** Opponent-defense adjustment for player props is now built
+  and backtested (see below -- it was the headline gap, and closing it
+  improved MAE on every single market). What's still missing: this model
+  has no injury-report, depth-chart, or game-plan signal, and no way to
+  detect a player's role changing season-to-season. Investigated directly
+  on a real live run: the large edges that remain are not low-sample noise
+  or a code bug (checked both), they're most plausibly the market pricing
+  in exactly this kind of information. Closing this gap for real would
+  need a live injury-report/depth-chart data source, not built here.
 
 Any of the above would very plausibly move the model closer to (or past) the
 market -- but until they're built and backtested with the same leak-free

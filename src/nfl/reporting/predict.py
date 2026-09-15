@@ -358,17 +358,22 @@ def generate() -> Path:
         "n_games_with_live_odds": len(live_odds_games),
         "player_props": player_props,
         "player_props_disclaimer": (
-            "This projection is a player's own trailing average ONLY -- it does not adjust for "
-            "opponent defensive strength, unlike the market and unlike this system's own game-level "
-            "models. Expect it to disagree with the market more, and less meaningfully, than the "
-            "game-level markets do: a large edge here is more likely a model blind spot (e.g. a hot "
-            "streak against weak defenses that the market has already discounted) than a genuine "
-            "mispricing -- read a large edge as 'investigate the matchup yourself,' not 'the model "
-            "found value.' No real historical player-prop lines exist anywhere (checked directly) so "
-            "this cannot be backtested against real market lines the way moneyline/spread/total are; "
-            "what IS backtested honestly: the trailing average beats a naive league-average baseline "
-            "on MAE, and its assumed Normal distribution is reasonably (not perfectly) calibrated -- "
-            "see data/processed/player_props_backtest_summary.json."
+            "This projection now adjusts for opponent defensive strength (a Ridge regression on the "
+            "player's own trailing average PLUS the opponent's trailing allowed stat, backtested to "
+            "genuinely improve MAE over a no-adjustment baseline on every market -- see "
+            "data/processed/player_props_backtest_summary.json). What it still does NOT have is any "
+            "real-time signal: injury reports, depth-chart changes, a coach's stated game plan, or a "
+            "player having changed teams/roles since last season. A large edge is more likely that gap "
+            "(the market pricing in information this model structurally cannot see) than a genuine "
+            "mispricing -- read it as 'investigate the matchup yourself,' not 'the model found value.' "
+            "No real historical player-prop lines exist anywhere (checked directly) so this cannot be "
+            "backtested against real market lines the way moneyline/spread/total are; what IS "
+            "backtested honestly: MAE beats both a naive league-average baseline and the no-adjustment "
+            "trailing average on every market, and the assumed Normal distribution is well-calibrated "
+            "for the more symmetric passing stats, reasonably (not perfectly) calibrated for the "
+            "right-skewed volume stats (rushing/receiving yards, receptions) -- a log-transform fix for "
+            "that skew was tried and made things WORSE on both MAE and calibration, so it was reverted "
+            "rather than shipped because it looked theoretically right."
         ),
     }
 

@@ -27,7 +27,7 @@ def _fake_pbp(games: pd.DataFrame, seed: int = 0) -> pd.DataFrame:
             is_pass = rng.random() < 0.6
             complete = rng.random() < 0.65 if is_pass else False
             rows.append({
-                "game_id": row.game_id, "play": 1.0,
+                "game_id": row.game_id, "play": 1.0, "posteam": row.home_team,
                 "pass": float(is_pass), "rush": float(not is_pass),
                 "passer_id": "QB1" if is_pass else None,
                 "rusher_id": "RB1" if not is_pass else None,

@@ -47,17 +47,20 @@ def aggregate_player_stats_to_game(pbp: pd.DataFrame) -> pd.DataFrame:
         passing_yards=("yards_gained", "sum"),
         passing_tds=("pass_touchdown", "sum"),
         pass_attempts=("passer_id", "size"),
+        team=("posteam", "first"),
     ).reset_index().rename(columns={"passer_id": "player_id"})
 
     rushing = rush_plays[rush_plays["rusher_id"].notna()].groupby(["game_id", "rusher_id"]).agg(
         rushing_yards=("yards_gained", "sum"),
         rushing_tds=("rush_touchdown", "sum"),
         carries=("rusher_id", "size"),
+        team=("posteam", "first"),
     ).reset_index().rename(columns={"rusher_id": "player_id"})
 
     targeted = pass_plays[pass_plays["receiver_id"].notna()]
-    targets = targeted.groupby(["game_id", "receiver_id"]).size().reset_index(name="targets") \
-        .rename(columns={"receiver_id": "player_id"})
+    targets = targeted.groupby(["game_id", "receiver_id"]).agg(
+        targets=("receiver_id", "size"), team=("posteam", "first"),
+    ).reset_index().rename(columns={"receiver_id": "player_id"})
 
     caught = targeted[targeted["complete_pass"] == 1]
     receiving = caught.groupby(["game_id", "receiver_id"]).agg(
@@ -67,13 +70,20 @@ def aggregate_player_stats_to_game(pbp: pd.DataFrame) -> pd.DataFrame:
     ).reset_index().rename(columns={"receiver_id": "player_id"})
 
     merged = targets.merge(receiving, on=["game_id", "player_id"], how="outer")
-    merged = passing.merge(merged, on=["game_id", "player_id"], how="outer")
-    merged = rushing.merge(merged, on=["game_id", "player_id"], how="outer")
+    merged = passing.merge(merged, on=["game_id", "player_id"], how="outer", suffixes=("", "_r"))
+    merged = rushing.merge(merged, on=["game_id", "player_id"], how="outer", suffixes=("", "_p"))
+    # `team` can come from up to three sources (passing/rushing/targets) for
+    # a player who touched the ball multiple ways in the same game -- always
+    # the same real team, so coalesce rather than pick one arbitrarily.
+    team_cols = [c for c in merged.columns if c == "team" or c.startswith("team_")]
+    merged["team"] = merged[team_cols].bfill(axis=1).iloc[:, 0]
+    merged = merged.drop(columns=[c for c in team_cols if c != "team"])
+
     for col in STAT_COLS:
         if col not in merged.columns:
             merged[col] = 0.0
         merged[col] = merged[col].fillna(0.0)
-    return merged[["game_id", "player_id"] + STAT_COLS]
+    return merged[["game_id", "player_id", "team"] + STAT_COLS]
 
 
 def _sort_games(games: pd.DataFrame) -> pd.DataFrame:
